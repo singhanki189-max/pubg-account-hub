@@ -15,6 +15,15 @@ type PubgAccount = Tables<"pubg_accounts">;
 const gmailSchema = z.string().trim().email().max(255);
 const nonNegativeNumberSchema = z.number().int().min(0).max(1_000_000_000);
 
+function isDuplicateKeyError(error: unknown) {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code?: string }).code === "23505",
+  );
+}
+
 function parseBulkRows(rawText: string): Array<{ gmail: string; uc: number; cards: number; mix_pop: number }> {
   const lines = rawText
     .split(/\r?\n/)
@@ -92,6 +101,12 @@ function Index() {
   const createAccountMutation = useMutation({
     mutationFn: async () => {
       const validatedGmail = gmailSchema.parse(gmail);
+      const existingGmailSet = new Set(accounts.map((account) => account.gmail.toLowerCase()));
+
+      if (existingGmailSet.has(validatedGmail.toLowerCase())) {
+        throw new Error("This Gmail already exists.");
+      }
+
       const parsedUc = nonNegativeNumberSchema.parse(Number(uc || 0));
       const parsedCards = nonNegativeNumberSchema.parse(Number(cards || 0));
       const parsedMixPop = nonNegativeNumberSchema.parse(Number(mixPop || 0));
@@ -103,7 +118,10 @@ function Index() {
         mix_pop: parsedMixPop,
       });
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        if (isDuplicateKeyError(dbError)) throw new Error("This Gmail already exists.");
+        throw dbError;
+      }
     },
     onSuccess: () => {
       setGmail("");
@@ -119,8 +137,26 @@ function Index() {
       const rows = parseBulkRows(bulkInput);
       if (rows.length === 0) throw new Error("Please paste at least one account row.");
 
-      const { error: dbError } = await supabase.from("pubg_accounts").insert(rows);
-      if (dbError) throw dbError;
+      const existingGmailSet = new Set(accounts.map((account) => account.gmail.toLowerCase()));
+      const uniqueRowsByGmail = new Map<string, (typeof rows)[number]>();
+
+      for (const row of rows) {
+        const key = row.gmail.toLowerCase();
+        if (!existingGmailSet.has(key) && !uniqueRowsByGmail.has(key)) {
+          uniqueRowsByGmail.set(key, row);
+        }
+      }
+
+      const rowsToInsert = Array.from(uniqueRowsByGmail.values());
+      if (rowsToInsert.length === 0) {
+        throw new Error("All pasted Gmail accounts already exist.");
+      }
+
+      const { error: dbError } = await supabase.from("pubg_accounts").insert(rowsToInsert);
+      if (dbError) {
+        if (isDuplicateKeyError(dbError)) throw new Error("One or more Gmail accounts already exist.");
+        throw dbError;
+      }
     },
     onSuccess: () => {
       setBulkInput("");
