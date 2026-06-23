@@ -14,7 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      pubg_accounts: {
+        Row: {
+          cards: number
+          created_at: string
+          gmail: string
+          id: string
+          mix_pop: number
+          uc: number
+          updated_at: string
+        }
+        Insert: {
+          cards?: number
+          created_at?: string
+          gmail: string
+          id?: string
+          mix_pop?: number
+          uc?: number
+          updated_at?: string
+        }
+        Update: {
+          cards?: number
+          created_at?: string
+          gmail?: string
+          id?: string
+          mix_pop?: number
+          uc?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
