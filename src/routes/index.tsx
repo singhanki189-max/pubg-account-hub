@@ -1,14 +1,51 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { z } from "zod";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 
 type PubgAccount = Tables<"pubg_accounts">;
+
+const gmailSchema = z.string().trim().email().max(255);
+const nonNegativeNumberSchema = z.number().int().min(0).max(1_000_000_000);
+
+function parseBulkRows(rawText: string): Array<{ gmail: string; uc: number; cards: number; mix_pop: number }> {
+  const lines = rawText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const parsedRows: Array<{ gmail: string; uc: number; cards: number; mix_pop: number }> = [];
+
+  for (const line of lines) {
+    const columns = line
+      .split(/[;,\t]/)
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+
+    const [gmailValue = "", ucValue = "0", cardsValue = "0", mixPopValue = "0"] = columns;
+    const validatedGmail = gmailSchema.parse(gmailValue);
+
+    const parsedUc = nonNegativeNumberSchema.parse(Number(ucValue));
+    const parsedCards = nonNegativeNumberSchema.parse(Number(cardsValue));
+    const parsedMixPop = nonNegativeNumberSchema.parse(Number(mixPopValue));
+
+    parsedRows.push({
+      gmail: validatedGmail,
+      uc: parsedUc,
+      cards: parsedCards,
+      mix_pop: parsedMixPop,
+    });
+  }
+
+  return parsedRows;
+}
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -35,6 +72,7 @@ function Index() {
   const [uc, setUc] = useState("0");
   const [cards, setCards] = useState("0");
   const [mixPop, setMixPop] = useState("0");
+  const [bulkInput, setBulkInput] = useState("");
 
   const [gmailFilter, setGmailFilter] = useState("");
   const [minCards, setMinCards] = useState("");
@@ -56,15 +94,16 @@ function Index() {
 
   const createAccountMutation = useMutation({
     mutationFn: async () => {
-      const parsedUc = Number(uc || 0);
-      const parsedCards = Number(cards || 0);
-      const parsedMixPop = Number(mixPop || 0);
+      const validatedGmail = gmailSchema.parse(gmail);
+      const parsedUc = nonNegativeNumberSchema.parse(Number(uc || 0));
+      const parsedCards = nonNegativeNumberSchema.parse(Number(cards || 0));
+      const parsedMixPop = nonNegativeNumberSchema.parse(Number(mixPop || 0));
 
       const { error: dbError } = await supabase.from("pubg_accounts").insert({
-        gmail: gmail.trim(),
-        uc: Number.isNaN(parsedUc) ? 0 : parsedUc,
-        cards: Number.isNaN(parsedCards) ? 0 : parsedCards,
-        mix_pop: Number.isNaN(parsedMixPop) ? 0 : parsedMixPop,
+        gmail: validatedGmail,
+        uc: parsedUc,
+        cards: parsedCards,
+        mix_pop: parsedMixPop,
       });
 
       if (dbError) throw dbError;
@@ -74,6 +113,20 @@ function Index() {
       setUc("0");
       setCards("0");
       setMixPop("0");
+      queryClient.invalidateQueries({ queryKey: ["pubg_accounts"] });
+    },
+  });
+
+  const bulkCreateMutation = useMutation({
+    mutationFn: async () => {
+      const rows = parseBulkRows(bulkInput);
+      if (rows.length === 0) throw new Error("Please paste at least one account row.");
+
+      const { error: dbError } = await supabase.from("pubg_accounts").insert(rows);
+      if (dbError) throw dbError;
+    },
+    onSuccess: () => {
+      setBulkInput("");
       queryClient.invalidateQueries({ queryKey: ["pubg_accounts"] });
     },
   });
@@ -102,6 +155,7 @@ function Index() {
   );
 
   const saveError = createAccountMutation.error?.message;
+  const bulkSaveError = bulkCreateMutation.error?.message;
 
   return (
     <div className="min-h-screen bg-background px-4 py-8 text-foreground">
@@ -146,6 +200,31 @@ function Index() {
             </Button>
           </form>
           {saveError ? <p className="mt-3 text-sm text-destructive">{saveError}</p> : null}
+        </section>
+
+        <section className="rounded-lg border border-border bg-card p-5">
+          <h2 className="text-lg font-semibold">Bulk add accounts</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Paste one account per line. Format: gmail,uc,cards,mix_pop (UC/cards/mix_pop are optional).
+          </p>
+          <form
+            className="mt-4 space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              bulkCreateMutation.mutate();
+            }}
+          >
+            <Textarea
+              className="min-h-36"
+              value={bulkInput}
+              onChange={(event) => setBulkInput(event.target.value)}
+              placeholder={"user1@gmail.com,1200,50000,3\nuser2@gmail.com,0,12000,1\nuser3@gmail.com"}
+            />
+            <Button type="submit" disabled={bulkCreateMutation.isPending || !bulkInput.trim()}>
+              {bulkCreateMutation.isPending ? "Saving bulk..." : "Save bulk accounts"}
+            </Button>
+          </form>
+          {bulkSaveError ? <p className="mt-3 text-sm text-destructive">{bulkSaveError}</p> : null}
         </section>
 
         <section className="rounded-lg border border-border bg-card p-5">
