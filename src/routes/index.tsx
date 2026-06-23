@@ -24,26 +24,37 @@ function isDuplicateKeyError(error: unknown) {
   );
 }
 
-function parseBulkRows(rawText: string): Array<{ gmail: string; uc: number; cards: number; mix_pop: number }> {
+function parseBulkRows(
+  rawText: string,
+): Array<{ gmail: string; email_level: number; uc: number; cards: number; mix_pop: number }> {
   const lines = rawText
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
 
-  const parsedRows: Array<{ gmail: string; uc: number; cards: number; mix_pop: number }> = [];
+  const parsedRows: Array<{
+    gmail: string;
+    email_level: number;
+    uc: number;
+    cards: number;
+    mix_pop: number;
+  }> = [];
 
   for (const line of lines) {
     const columns = line.split(/[;,\t]/).map((value) => value.trim());
 
-    const [gmailValue = "", ucValue = "0", cardsValue = "0", mixPopValue = "0"] = columns;
+    const [gmailValue = "", emailLevelValue = "0", ucValue = "0", cardsValue = "0", mixPopValue = "0"] =
+      columns;
     const validatedGmail = gmailSchema.parse(gmailValue);
 
+    const parsedEmailLevel = nonNegativeNumberSchema.parse(Number(emailLevelValue));
     const parsedUc = nonNegativeNumberSchema.parse(Number(ucValue));
     const parsedCards = nonNegativeNumberSchema.parse(Number(cardsValue));
     const parsedMixPop = nonNegativeNumberSchema.parse(Number(mixPopValue));
 
     parsedRows.push({
       gmail: validatedGmail,
+      email_level: parsedEmailLevel,
       uc: parsedUc,
       cards: parsedCards,
       mix_pop: parsedMixPop,
@@ -75,6 +86,7 @@ function Index() {
   const queryClient = useQueryClient();
 
   const [gmail, setGmail] = useState("");
+  const [emailLevel, setEmailLevel] = useState("0");
   const [uc, setUc] = useState("0");
   const [cards, setCards] = useState("0");
   const [mixPop, setMixPop] = useState("0");
@@ -87,6 +99,7 @@ function Index() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editGmail, setEditGmail] = useState("");
+  const [editEmailLevel, setEditEmailLevel] = useState("0");
   const [editUc, setEditUc] = useState("0");
   const [editCards, setEditCards] = useState("0");
   const [editMixPop, setEditMixPop] = useState("0");
@@ -96,7 +109,7 @@ function Index() {
     queryFn: async () => {
       const { data, error: dbError } = await supabase
         .from("pubg_accounts")
-        .select("id, gmail, uc, cards, mix_pop, created_at, updated_at")
+        .select("id, gmail, email_level, uc, cards, mix_pop, created_at, updated_at")
         .order("created_at", { ascending: false });
 
       if (dbError) throw dbError;
@@ -116,9 +129,11 @@ function Index() {
       const parsedUc = nonNegativeNumberSchema.parse(Number(uc || 0));
       const parsedCards = nonNegativeNumberSchema.parse(Number(cards || 0));
       const parsedMixPop = nonNegativeNumberSchema.parse(Number(mixPop || 0));
+      const parsedEmailLevel = nonNegativeNumberSchema.parse(Number(emailLevel || 0));
 
       const { error: dbError } = await supabase.from("pubg_accounts").insert({
         gmail: validatedGmail,
+        email_level: parsedEmailLevel,
         uc: parsedUc,
         cards: parsedCards,
         mix_pop: parsedMixPop,
@@ -131,6 +146,7 @@ function Index() {
     },
     onSuccess: () => {
       setGmail("");
+      setEmailLevel("0");
       setUc("0");
       setCards("0");
       setMixPop("0");
@@ -188,11 +204,13 @@ function Index() {
       const parsedUc = nonNegativeNumberSchema.parse(Number(editUc || 0));
       const parsedCards = nonNegativeNumberSchema.parse(Number(editCards || 0));
       const parsedMixPop = nonNegativeNumberSchema.parse(Number(editMixPop || 0));
+      const parsedEmailLevel = nonNegativeNumberSchema.parse(Number(editEmailLevel || 0));
 
       const { error: dbError } = await supabase
         .from("pubg_accounts")
         .update({
           gmail: validatedGmail,
+          email_level: parsedEmailLevel,
           uc: parsedUc,
           cards: parsedCards,
           mix_pop: parsedMixPop,
@@ -207,6 +225,7 @@ function Index() {
     onSuccess: () => {
       setEditingId(null);
       setEditGmail("");
+      setEditEmailLevel("0");
       setEditUc("0");
       setEditCards("0");
       setEditMixPop("0");
@@ -217,6 +236,7 @@ function Index() {
   function startEditing(account: PubgAccount) {
     setEditingId(account.id);
     setEditGmail(account.gmail);
+    setEditEmailLevel(String(account.email_level));
     setEditUc(String(account.uc));
     setEditCards(String(account.cards));
     setEditMixPop(String(account.mix_pop));
@@ -225,6 +245,7 @@ function Index() {
   function cancelEditing() {
     setEditingId(null);
     setEditGmail("");
+    setEditEmailLevel("0");
     setEditUc("0");
     setEditCards("0");
     setEditMixPop("0");
@@ -271,7 +292,7 @@ function Index() {
         <section className="rounded-lg border border-border bg-card p-5">
           <h2 className="text-lg font-semibold">Add account</h2>
           <form
-            className="mt-4 grid gap-3 md:grid-cols-5"
+            className="mt-4 grid gap-3 md:grid-cols-6"
             onSubmit={(event) => {
               event.preventDefault();
               createAccountMutation.mutate();
@@ -282,6 +303,13 @@ function Index() {
               onChange={(event) => setGmail(event.target.value)}
               placeholder="gmail@example.com"
               required
+            />
+            <Input
+              value={emailLevel}
+              onChange={(event) => setEmailLevel(event.target.value)}
+              type="number"
+              min={0}
+              placeholder="Email level"
             />
             <Input value={uc} onChange={(event) => setUc(event.target.value)} type="number" min={0} />
             <Input
@@ -306,7 +334,7 @@ function Index() {
         <section className="rounded-lg border border-border bg-card p-5">
           <h2 className="text-lg font-semibold">Bulk add accounts</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Paste one account per line. Format: gmail,uc,cards,mix_pop (UC/cards/mix_pop are optional).
+            Paste one account per line. Format: gmail,email_level,uc,cards,mix_pop (numbers are optional).
           </p>
           <form
             className="mt-4 space-y-3"
@@ -319,7 +347,9 @@ function Index() {
               className="min-h-36"
               value={bulkInput}
               onChange={(event) => setBulkInput(event.target.value)}
-              placeholder={"user1@gmail.com,1200,50000,3\nuser2@gmail.com,0,12000,1\nuser3@gmail.com"}
+              placeholder={
+                "user1@gmail.com,58,1200,50000,3\nuser2@gmail.com,42,0,12000,1\nuser3@gmail.com,35"
+              }
             />
             <Button type="submit" disabled={bulkCreateMutation.isPending || !bulkInput.trim()}>
               {bulkCreateMutation.isPending ? "Saving bulk..." : "Save bulk accounts"}
@@ -379,7 +409,7 @@ function Index() {
         <section className="rounded-lg border border-border bg-card p-5">
           <h2 className="text-lg font-semibold">Results</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Click <strong>Edit</strong> on any row to update Gmail, UC, cards, or mix pop.
+            Click <strong>Edit</strong> on any row to update Gmail details, email level, UC, cards, or mix pop.
           </p>
           {editSaveError ? <p className="mt-3 text-sm text-destructive">{editSaveError}</p> : null}
           {isLoading ? <p className="mt-4 text-sm text-muted-foreground">Loading accounts...</p> : null}
@@ -391,6 +421,7 @@ function Index() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Gmail</TableHead>
+                    <TableHead className="text-right">Email Level</TableHead>
                     <TableHead className="text-right">UC</TableHead>
                     <TableHead className="text-right">Cards</TableHead>
                     <TableHead className="text-right">Mix Pop</TableHead>
@@ -407,6 +438,15 @@ function Index() {
                               value={editGmail}
                               onChange={(event) => setEditGmail(event.target.value)}
                               placeholder="gmail@example.com"
+                            />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Input
+                              value={editEmailLevel}
+                              onChange={(event) => setEditEmailLevel(event.target.value)}
+                              type="number"
+                              min={0}
+                              placeholder="Level"
                             />
                           </TableCell>
                           <TableCell className="text-right">
@@ -457,6 +497,7 @@ function Index() {
                       ) : (
                         <>
                           <TableCell>{account.gmail}</TableCell>
+                          <TableCell className="text-right">{account.email_level.toLocaleString()}</TableCell>
                           <TableCell className="text-right">{account.uc.toLocaleString()}</TableCell>
                           <TableCell className="text-right">{account.cards.toLocaleString()}</TableCell>
                           <TableCell className="text-right">{account.mix_pop.toLocaleString()}</TableCell>

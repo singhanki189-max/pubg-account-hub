@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           cards: number
           created_at: string
+          email_level: number
           gmail: string
           id: string
           mix_pop: number
@@ -27,6 +28,7 @@ export type Database = {
         Insert: {
           cards?: number
           created_at?: string
+          email_level?: number
           gmail: string
           id?: string
           mix_pop?: number
@@ -36,6 +38,7 @@ export type Database = {
         Update: {
           cards?: number
           created_at?: string
+          email_level?: number
           gmail?: string
           id?: string
           mix_pop?: number
