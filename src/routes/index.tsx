@@ -1,29 +1,254 @@
+import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+type PubgAccount = Tables<"pubg_accounts">;
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Your App" },
-      { name: "description", content: "Replace this with a one-sentence description of your app." },
-      { property: "og:title", content: "Your App" },
-      { property: "og:description", content: "Replace this with a one-sentence description of your app." },
+      { title: "PUBG Account Manager" },
+      {
+        name: "description",
+        content: "Store and filter PUBG account details by Gmail, UC, cards, and mix pop.",
+      },
+      { property: "og:title", content: "PUBG Account Manager" },
+      {
+        property: "og:description",
+        content: "Store and filter PUBG account details by Gmail, UC, cards, and mix pop.",
+      },
     ],
   }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
 function Index() {
+  const queryClient = useQueryClient();
+
+  const [gmail, setGmail] = useState("");
+  const [uc, setUc] = useState("0");
+  const [cards, setCards] = useState("0");
+  const [mixPop, setMixPop] = useState("0");
+
+  const [gmailFilter, setGmailFilter] = useState("");
+  const [minCards, setMinCards] = useState("");
+  const [onlyWithUc, setOnlyWithUc] = useState(false);
+  const [onlyCards50k, setOnlyCards50k] = useState(false);
+
+  const { data: accounts = [], isLoading, error } = useQuery({
+    queryKey: ["pubg_accounts"],
+    queryFn: async () => {
+      const { data, error: dbError } = await supabase
+        .from("pubg_accounts")
+        .select("id, gmail, uc, cards, mix_pop, created_at, updated_at")
+        .order("created_at", { ascending: false });
+
+      if (dbError) throw dbError;
+      return data as PubgAccount[];
+    },
+  });
+
+  const createAccountMutation = useMutation({
+    mutationFn: async () => {
+      const parsedUc = Number(uc || 0);
+      const parsedCards = Number(cards || 0);
+      const parsedMixPop = Number(mixPop || 0);
+
+      const { error: dbError } = await supabase.from("pubg_accounts").insert({
+        gmail: gmail.trim(),
+        uc: Number.isNaN(parsedUc) ? 0 : parsedUc,
+        cards: Number.isNaN(parsedCards) ? 0 : parsedCards,
+        mix_pop: Number.isNaN(parsedMixPop) ? 0 : parsedMixPop,
+      });
+
+      if (dbError) throw dbError;
+    },
+    onSuccess: () => {
+      setGmail("");
+      setUc("0");
+      setCards("0");
+      setMixPop("0");
+      queryClient.invalidateQueries({ queryKey: ["pubg_accounts"] });
+    },
+  });
+
+  const filteredAccounts = useMemo(() => {
+    const minCardsValue = Number(minCards);
+
+    return accounts.filter((account) => {
+      const matchesGmail = gmailFilter
+        ? account.gmail.toLowerCase().includes(gmailFilter.toLowerCase())
+        : true;
+      const matchesMinCards = minCards
+        ? !Number.isNaN(minCardsValue) && account.cards >= minCardsValue
+        : true;
+      const matchesUc = onlyWithUc ? account.uc > 0 : true;
+      const matches50k = onlyCards50k ? account.cards === 50000 : true;
+
+      return matchesGmail && matchesMinCards && matchesUc && matches50k;
+    });
+  }, [accounts, gmailFilter, minCards, onlyWithUc, onlyCards50k]);
+
+  const accountsWithUc = useMemo(() => accounts.filter((account) => account.uc > 0), [accounts]);
+  const accountsWith50kCards = useMemo(
+    () => accounts.filter((account) => account.cards === 50000),
+    [accounts],
+  );
+
+  const saveError = createAccountMutation.error?.message;
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+    <div className="min-h-screen bg-background px-4 py-8 text-foreground">
+      <main className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+        <section className="rounded-lg border border-border bg-card p-5">
+          <h1 className="text-2xl font-semibold">PUBG Account Manager</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Save Gmail, UC, cards, and mix pop, then filter to quickly find target accounts.
+          </p>
+        </section>
+
+        <section className="rounded-lg border border-border bg-card p-5">
+          <h2 className="text-lg font-semibold">Add account</h2>
+          <form
+            className="mt-4 grid gap-3 md:grid-cols-5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              createAccountMutation.mutate();
+            }}
+          >
+            <Input
+              value={gmail}
+              onChange={(event) => setGmail(event.target.value)}
+              placeholder="gmail@example.com"
+              required
+            />
+            <Input value={uc} onChange={(event) => setUc(event.target.value)} type="number" min={0} />
+            <Input
+              value={cards}
+              onChange={(event) => setCards(event.target.value)}
+              type="number"
+              min={0}
+            />
+            <Input
+              value={mixPop}
+              onChange={(event) => setMixPop(event.target.value)}
+              type="number"
+              min={0}
+            />
+            <Button type="submit" disabled={createAccountMutation.isPending || !gmail.trim()}>
+              {createAccountMutation.isPending ? "Saving..." : "Save account"}
+            </Button>
+          </form>
+          {saveError ? <p className="mt-3 text-sm text-destructive">{saveError}</p> : null}
+        </section>
+
+        <section className="rounded-lg border border-border bg-card p-5">
+          <h2 className="text-lg font-semibold">Filter accounts</h2>
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
+            <Input
+              value={gmailFilter}
+              onChange={(event) => setGmailFilter(event.target.value)}
+              placeholder="Search gmail"
+            />
+            <Input
+              value={minCards}
+              onChange={(event) => setMinCards(event.target.value)}
+              type="number"
+              min={0}
+              placeholder="Min cards"
+            />
+            <label className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+              <input
+                checked={onlyCards50k}
+                onChange={(event) => setOnlyCards50k(event.target.checked)}
+                type="checkbox"
+              />
+              Only 50k cards
+            </label>
+            <label className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+              <input
+                checked={onlyWithUc}
+                onChange={(event) => setOnlyWithUc(event.target.checked)}
+                type="checkbox"
+              />
+              Only with UC
+            </label>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="rounded-md border border-border bg-muted p-3 text-sm">
+              <p className="text-muted-foreground">Filtered accounts</p>
+              <p className="text-xl font-semibold">{filteredAccounts.length}</p>
+            </div>
+            <div className="rounded-md border border-border bg-muted p-3 text-sm">
+              <p className="text-muted-foreground">Gmails with 50k cards</p>
+              <p className="text-xl font-semibold">{accountsWith50kCards.length}</p>
+            </div>
+            <div className="rounded-md border border-border bg-muted p-3 text-sm">
+              <p className="text-muted-foreground">Gmails with UC</p>
+              <p className="text-xl font-semibold">{accountsWithUc.length}</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-border bg-card p-5">
+          <h2 className="text-lg font-semibold">Results</h2>
+          {isLoading ? <p className="mt-4 text-sm text-muted-foreground">Loading accounts...</p> : null}
+          {error ? <p className="mt-4 text-sm text-destructive">{error.message}</p> : null}
+
+          {!isLoading && !error ? (
+            <div className="mt-4 max-h-[500px] overflow-auto rounded-md border border-border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Gmail</TableHead>
+                    <TableHead className="text-right">UC</TableHead>
+                    <TableHead className="text-right">Cards</TableHead>
+                    <TableHead className="text-right">Mix Pop</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredAccounts.map((account) => (
+                    <TableRow key={account.id}>
+                      <TableCell>{account.gmail}</TableCell>
+                      <TableCell className="text-right">{account.uc.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{account.cards.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{account.mix_pop.toLocaleString()}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="grid gap-4 rounded-lg border border-border bg-card p-5 md:grid-cols-2">
+          <div>
+            <h2 className="text-base font-semibold">Gmails with 50k cards</h2>
+            <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
+              {accountsWith50kCards.length === 0 ? <li>None yet</li> : null}
+              {accountsWith50kCards.map((account) => (
+                <li key={`cards-${account.id}`}>{account.gmail}</li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h2 className="text-base font-semibold">Gmails with UC</h2>
+            <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
+              {accountsWithUc.length === 0 ? <li>None yet</li> : null}
+              {accountsWithUc.map((account) => (
+                <li key={`uc-${account.id}`}>{account.gmail}</li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
