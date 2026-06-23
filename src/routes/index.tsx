@@ -274,6 +274,14 @@ function Index() {
     () => accounts.filter((account) => account.cards === 50000),
     [accounts],
   );
+  const totalCards = useMemo(
+    () => accounts.reduce((sum, account) => sum + account.cards, 0),
+    [accounts],
+  );
+  const totalMixPop = useMemo(
+    () => accounts.reduce((sum, account) => sum + account.mix_pop, 0),
+    [accounts],
+  );
 
   const saveError = createAccountMutation.error?.message;
   const bulkSaveError = bulkCreateMutation.error?.message;
@@ -390,7 +398,7 @@ function Index() {
               Only with UC
             </label>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="mt-4 grid gap-3 md:grid-cols-5">
             <div className="rounded-md border border-border bg-muted p-3 text-sm">
               <p className="text-muted-foreground">Filtered accounts</p>
               <p className="text-xl font-semibold">{filteredAccounts.length}</p>
@@ -402,6 +410,14 @@ function Index() {
             <div className="rounded-md border border-border bg-muted p-3 text-sm">
               <p className="text-muted-foreground">Gmails with UC</p>
               <p className="text-xl font-semibold">{accountsWithUc.length}</p>
+            </div>
+            <div className="rounded-md border border-border bg-muted p-3 text-sm">
+              <p className="text-muted-foreground">Total cards</p>
+              <p className="text-xl font-semibold">{totalCards.toLocaleString()}</p>
+            </div>
+            <div className="rounded-md border border-border bg-muted p-3 text-sm">
+              <p className="text-muted-foreground">Total mix pop</p>
+              <p className="text-xl font-semibold">{totalMixPop.toLocaleString()}</p>
             </div>
           </div>
         </section>
