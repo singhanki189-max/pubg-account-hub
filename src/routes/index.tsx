@@ -85,6 +85,12 @@ function Index() {
   const [onlyWithUc, setOnlyWithUc] = useState(false);
   const [onlyCards50k, setOnlyCards50k] = useState(false);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editGmail, setEditGmail] = useState("");
+  const [editUc, setEditUc] = useState("0");
+  const [editCards, setEditCards] = useState("0");
+  const [editMixPop, setEditMixPop] = useState("0");
+
   const { data: accounts = [], isLoading, error } = useQuery({
     queryKey: ["pubg_accounts"],
     queryFn: async () => {
@@ -164,6 +170,67 @@ function Index() {
     },
   });
 
+  const updateAccountMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingId) throw new Error("No account selected for editing.");
+
+      const validatedGmail = gmailSchema.parse(editGmail);
+      const existingGmailSet = new Set(
+        accounts
+          .filter((account) => account.id !== editingId)
+          .map((account) => account.gmail.toLowerCase()),
+      );
+
+      if (existingGmailSet.has(validatedGmail.toLowerCase())) {
+        throw new Error("This Gmail already exists.");
+      }
+
+      const parsedUc = nonNegativeNumberSchema.parse(Number(editUc || 0));
+      const parsedCards = nonNegativeNumberSchema.parse(Number(editCards || 0));
+      const parsedMixPop = nonNegativeNumberSchema.parse(Number(editMixPop || 0));
+
+      const { error: dbError } = await supabase
+        .from("pubg_accounts")
+        .update({
+          gmail: validatedGmail,
+          uc: parsedUc,
+          cards: parsedCards,
+          mix_pop: parsedMixPop,
+        })
+        .eq("id", editingId);
+
+      if (dbError) {
+        if (isDuplicateKeyError(dbError)) throw new Error("This Gmail already exists.");
+        throw dbError;
+      }
+    },
+    onSuccess: () => {
+      setEditingId(null);
+      setEditGmail("");
+      setEditUc("0");
+      setEditCards("0");
+      setEditMixPop("0");
+      queryClient.invalidateQueries({ queryKey: ["pubg_accounts"] });
+    },
+  });
+
+  function startEditing(account: PubgAccount) {
+    setEditingId(account.id);
+    setEditGmail(account.gmail);
+    setEditUc(String(account.uc));
+    setEditCards(String(account.cards));
+    setEditMixPop(String(account.mix_pop));
+  }
+
+  function cancelEditing() {
+    setEditingId(null);
+    setEditGmail("");
+    setEditUc("0");
+    setEditCards("0");
+    setEditMixPop("0");
+    updateAccountMutation.reset();
+  }
+
   const filteredAccounts = useMemo(() => {
     const minCardsValue = Number(minCards);
 
@@ -189,6 +256,7 @@ function Index() {
 
   const saveError = createAccountMutation.error?.message;
   const bulkSaveError = bulkCreateMutation.error?.message;
+  const editSaveError = updateAccountMutation.error?.message;
 
   return (
     <div className="min-h-screen bg-background px-4 py-8 text-foreground">
@@ -310,6 +378,10 @@ function Index() {
 
         <section className="rounded-lg border border-border bg-card p-5">
           <h2 className="text-lg font-semibold">Results</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Click <strong>Edit</strong> on any row to update Gmail, UC, cards, or mix pop.
+          </p>
+          {editSaveError ? <p className="mt-3 text-sm text-destructive">{editSaveError}</p> : null}
           {isLoading ? <p className="mt-4 text-sm text-muted-foreground">Loading accounts...</p> : null}
           {error ? <p className="mt-4 text-sm text-destructive">{error.message}</p> : null}
 
@@ -322,15 +394,86 @@ function Index() {
                     <TableHead className="text-right">UC</TableHead>
                     <TableHead className="text-right">Cards</TableHead>
                     <TableHead className="text-right">Mix Pop</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredAccounts.map((account) => (
                     <TableRow key={account.id}>
-                      <TableCell>{account.gmail}</TableCell>
-                      <TableCell className="text-right">{account.uc.toLocaleString()}</TableCell>
-                      <TableCell className="text-right">{account.cards.toLocaleString()}</TableCell>
-                      <TableCell className="text-right">{account.mix_pop.toLocaleString()}</TableCell>
+                      {editingId === account.id ? (
+                        <>
+                          <TableCell>
+                            <Input
+                              value={editGmail}
+                              onChange={(event) => setEditGmail(event.target.value)}
+                              placeholder="gmail@example.com"
+                            />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Input
+                              value={editUc}
+                              onChange={(event) => setEditUc(event.target.value)}
+                              type="number"
+                              min={0}
+                            />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Input
+                              value={editCards}
+                              onChange={(event) => setEditCards(event.target.value)}
+                              type="number"
+                              min={0}
+                            />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Input
+                              value={editMixPop}
+                              onChange={(event) => setEditMixPop(event.target.value)}
+                              type="number"
+                              min={0}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                size="sm"
+                                disabled={updateAccountMutation.isPending || !editGmail.trim()}
+                                onClick={() => updateAccountMutation.mutate()}
+                                type="button"
+                              >
+                                {updateAccountMutation.isPending ? "Saving..." : "Save"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={cancelEditing}
+                                type="button"
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </>
+                      ) : (
+                        <>
+                          <TableCell>{account.gmail}</TableCell>
+                          <TableCell className="text-right">{account.uc.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{account.cards.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{account.mix_pop.toLocaleString()}</TableCell>
+                          <TableCell>
+                            <div className="flex justify-end">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => startEditing(account)}
+                                type="button"
+                              >
+                                Edit
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
