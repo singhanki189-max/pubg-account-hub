@@ -24,10 +24,7 @@ function parseBulkRows(rawText: string): Array<{ gmail: string; uc: number; card
   const parsedRows: Array<{ gmail: string; uc: number; cards: number; mix_pop: number }> = [];
 
   for (const line of lines) {
-    const columns = line
-      .split(/[;,\t]/)
-      .map((value) => value.trim())
-      .filter((value) => value.length > 0);
+    const columns = line.split(/[;,\t]/).map((value) => value.trim());
 
     const [gmailValue = "", ucValue = "0", cardsValue = "0", mixPopValue = "0"] = columns;
     const validatedGmail = gmailSchema.parse(gmailValue);
