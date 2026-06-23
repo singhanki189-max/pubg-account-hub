@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS pubg_accounts_gmail_unique_idx ON public.pubg_accounts (LOWER(gmail));
