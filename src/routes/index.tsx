@@ -24,26 +24,37 @@ function isDuplicateKeyError(error: unknown) {
   );
 }
 
-function parseBulkRows(rawText: string): Array<{ gmail: string; uc: number; cards: number; mix_pop: number }> {
+function parseBulkRows(
+  rawText: string,
+): Array<{ gmail: string; email_level: number; uc: number; cards: number; mix_pop: number }> {
   const lines = rawText
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
 
-  const parsedRows: Array<{ gmail: string; uc: number; cards: number; mix_pop: number }> = [];
+  const parsedRows: Array<{
+    gmail: string;
+    email_level: number;
+    uc: number;
+    cards: number;
+    mix_pop: number;
+  }> = [];
 
   for (const line of lines) {
     const columns = line.split(/[;,\t]/).map((value) => value.trim());
 
-    const [gmailValue = "", ucValue = "0", cardsValue = "0", mixPopValue = "0"] = columns;
+    const [gmailValue = "", emailLevelValue = "0", ucValue = "0", cardsValue = "0", mixPopValue = "0"] =
+      columns;
     const validatedGmail = gmailSchema.parse(gmailValue);
 
+    const parsedEmailLevel = nonNegativeNumberSchema.parse(Number(emailLevelValue));
     const parsedUc = nonNegativeNumberSchema.parse(Number(ucValue));
     const parsedCards = nonNegativeNumberSchema.parse(Number(cardsValue));
     const parsedMixPop = nonNegativeNumberSchema.parse(Number(mixPopValue));
 
     parsedRows.push({
       gmail: validatedGmail,
+      email_level: parsedEmailLevel,
       uc: parsedUc,
       cards: parsedCards,
       mix_pop: parsedMixPop,
@@ -75,6 +86,7 @@ function Index() {
   const queryClient = useQueryClient();
 
   const [gmail, setGmail] = useState("");
+  const [emailLevel, setEmailLevel] = useState("0");
   const [uc, setUc] = useState("0");
   const [cards, setCards] = useState("0");
   const [mixPop, setMixPop] = useState("0");
@@ -87,6 +99,7 @@ function Index() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editGmail, setEditGmail] = useState("");
+  const [editEmailLevel, setEditEmailLevel] = useState("0");
   const [editUc, setEditUc] = useState("0");
   const [editCards, setEditCards] = useState("0");
   const [editMixPop, setEditMixPop] = useState("0");
@@ -96,7 +109,7 @@ function Index() {
     queryFn: async () => {
       const { data, error: dbError } = await supabase
         .from("pubg_accounts")
-        .select("id, gmail, uc, cards, mix_pop, created_at, updated_at")
+        .select("id, gmail, email_level, uc, cards, mix_pop, created_at, updated_at")
         .order("created_at", { ascending: false });
 
       if (dbError) throw dbError;
@@ -116,9 +129,11 @@ function Index() {
       const parsedUc = nonNegativeNumberSchema.parse(Number(uc || 0));
       const parsedCards = nonNegativeNumberSchema.parse(Number(cards || 0));
       const parsedMixPop = nonNegativeNumberSchema.parse(Number(mixPop || 0));
+      const parsedEmailLevel = nonNegativeNumberSchema.parse(Number(emailLevel || 0));
 
       const { error: dbError } = await supabase.from("pubg_accounts").insert({
         gmail: validatedGmail,
+        email_level: parsedEmailLevel,
         uc: parsedUc,
         cards: parsedCards,
         mix_pop: parsedMixPop,
@@ -131,6 +146,7 @@ function Index() {
     },
     onSuccess: () => {
       setGmail("");
+      setEmailLevel("0");
       setUc("0");
       setCards("0");
       setMixPop("0");
