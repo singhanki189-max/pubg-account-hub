@@ -121,12 +121,12 @@ function EventPage() {
     queryFn: async () => {
       const { data, error: dbError } = await supabase
         .from("pubg_event_account_popularity")
-        .select("account_id, kr_popularity, global_popularity, spent_popularity");
+        .select("event_id, account_id, kr_popularity, global_popularity, spent_popularity");
 
       if (dbError) throw dbError;
       return data as Pick<
         EventPopularityRow,
-        "account_id" | "kr_popularity" | "global_popularity" | "spent_popularity"
+        "event_id" | "account_id" | "kr_popularity" | "global_popularity" | "spent_popularity"
       >[];
     },
   });
@@ -225,6 +225,7 @@ function EventPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pubg_event_rows", selectedEventId] });
+      queryClient.invalidateQueries({ queryKey: ["pubg_event_rows_all_accounts"] });
     },
   });
 
@@ -284,8 +285,36 @@ function EventPage() {
       map.set(row.account_id, (map.get(row.account_id) ?? 0) + available);
     }
 
+    if (!selectedEventId) {
+      return map;
+    }
+
+    for (const account of accounts) {
+      const savedSelectedRow = savedByAccount.get(account.id);
+      const savedSelectedAvailable = savedSelectedRow
+        ? Math.max(
+            (savedSelectedRow.kr_popularity ?? 0) +
+              (savedSelectedRow.global_popularity ?? 0) -
+              (savedSelectedRow.spent_popularity ?? 0),
+            0,
+          )
+        : 0;
+
+      const draft = draftByAccount[account.id] ?? defaultEventDraft;
+      const draftKr = draft.krChecked ? Number(draft.krPopularity || 0) : 0;
+      const draftGlobal = draft.globalChecked ? Number(draft.globalPopularity || 0) : 0;
+      const draftSpent = Number(draft.spentPopularity || 0);
+      const draftAvailable =
+        Number.isNaN(draftKr) || Number.isNaN(draftGlobal) || Number.isNaN(draftSpent)
+          ? 0
+          : Math.max(draftKr + draftGlobal - draftSpent, 0);
+
+      const baseTotal = map.get(account.id) ?? 0;
+      map.set(account.id, Math.max(baseTotal - savedSelectedAvailable + draftAvailable, 0));
+    }
+
     return map;
-  }, [allEventRows]);
+  }, [accounts, allEventRows, draftByAccount, savedByAccount, selectedEventId]);
 
   const totalAvailableAcrossAllEvents = useMemo(
     () => Array.from(availableAcrossAllEventsByAccount.values()).reduce((sum, value) => sum + value, 0),
@@ -307,7 +336,10 @@ function EventPage() {
   }
 
   async function handleRefreshAll() {
-    await refetchSavedRows();
+    await Promise.all([
+      refetchSavedRows(),
+      queryClient.refetchQueries({ queryKey: ["pubg_event_rows_all_accounts"], exact: true }),
+    ]);
     saveAllMutation.reset();
   }
 
