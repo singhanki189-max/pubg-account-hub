@@ -293,9 +293,18 @@ function Index() {
         <section className="rounded-lg border border-border bg-card p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h1 className="text-2xl font-semibold">PUBG Account Manager</h1>
-            <Button asChild>
-              <Link to="/event">Event</Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild>
+                <Link to="/event" search={{ mode: "kr" }}>
+                  PUBG KR Event
+                </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link to="/event" search={{ mode: "global" }}>
+                  PUBG Global Event
+                </Link>
+              </Button>
+            </div>
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
             Save Gmail, UC, cards, and mix pop, then filter to quickly find target accounts.

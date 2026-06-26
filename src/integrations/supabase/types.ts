@@ -53,8 +53,10 @@ export type Database = {
           created_at: string
           event_id: string
           global_popularity: number
+          global_spent_popularity: number
           id: string
           kr_popularity: number
+          kr_spent_popularity: number
           spent_popularity: number
           updated_at: string
         }
@@ -63,8 +65,10 @@ export type Database = {
           created_at?: string
           event_id: string
           global_popularity?: number
+          global_spent_popularity?: number
           id?: string
           kr_popularity?: number
+          kr_spent_popularity?: number
           spent_popularity?: number
           updated_at?: string
         }
@@ -73,8 +77,10 @@ export type Database = {
           created_at?: string
           event_id?: string
           global_popularity?: number
+          global_spent_popularity?: number
           id?: string
           kr_popularity?: number
+          kr_spent_popularity?: number
           spent_popularity?: number
           updated_at?: string
         }

@@ -5,20 +5,29 @@ import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 
 type PubgAccount = Tables<"pubg_accounts">;
 type PubgEvent = Tables<"pubg_events">;
 type EventPopularityRow = Tables<"pubg_event_account_popularity">;
+type EventMode = "kr" | "global";
 
 type EventDraft = {
   krChecked: boolean;
   krPopularity: string;
   globalChecked: boolean;
   globalPopularity: string;
-  spentPopularity: string;
+  krSpentPopularity: string;
+  globalSpentPopularity: string;
 };
 
 const nonNegativeNumberSchema = z.number().int().min(0).max(1_000_000_000);
@@ -28,23 +37,25 @@ const defaultEventDraft: EventDraft = {
   krPopularity: "",
   globalChecked: false,
   globalPopularity: "",
-  spentPopularity: "0",
+  krSpentPopularity: "0",
+  globalSpentPopularity: "0",
 };
 
 export const Route = createFileRoute("/event")({
+  validateSearch: z.object({
+    mode: z.enum(["kr", "global"]).optional(),
+  }),
   head: () => ({
     meta: [
       { title: "PUBG Event Popularity" },
       {
         name: "description",
-        content:
-          "Track PUBG KR and PUBG Mobile event popularity totals by Gmail account.",
+        content: "Track PUBG KR and PUBG Global events separately by Gmail account.",
       },
       { property: "og:title", content: "PUBG Event Popularity" },
       {
         property: "og:description",
-        content:
-          "Track PUBG KR and PUBG Mobile event popularity totals by Gmail account.",
+        content: "Track PUBG KR and PUBG Global events separately by Gmail account.",
       },
     ],
   }),
@@ -52,6 +63,9 @@ export const Route = createFileRoute("/event")({
 });
 
 function EventPage() {
+  const { mode = "kr" } = Route.useSearch();
+  const isKrMode = mode === "kr";
+  const modeLabel = isKrMode ? "PUBG KR" : "PUBG Global";
   const queryClient = useQueryClient();
   const [newEventName, setNewEventName] = useState("");
   const [selectedEventId, setSelectedEventId] = useState<string>("");
@@ -70,7 +84,11 @@ function EventPage() {
     },
   });
 
-  const { data: events = [], isLoading: isLoadingEvents, error: eventsError } = useQuery({
+  const {
+    data: events = [],
+    isLoading: isLoadingEvents,
+    error: eventsError,
+  } = useQuery({
     queryKey: ["pubg_events"],
     queryFn: async () => {
       const { data, error: dbError } = await supabase
@@ -103,7 +121,7 @@ function EventPage() {
       const { data, error: dbError } = await supabase
         .from("pubg_event_account_popularity")
         .select(
-          "id, event_id, account_id, kr_popularity, global_popularity, spent_popularity, created_at, updated_at",
+          "id, event_id, account_id, kr_popularity, global_popularity, spent_popularity, kr_spent_popularity, global_spent_popularity, created_at, updated_at",
         )
         .eq("event_id", selectedEventId);
 
@@ -121,23 +139,29 @@ function EventPage() {
     queryFn: async () => {
       const { data, error: dbError } = await supabase
         .from("pubg_event_account_popularity")
-        .select("event_id, account_id, kr_popularity, global_popularity, spent_popularity");
+        .select(
+          "event_id, account_id, kr_popularity, global_popularity, spent_popularity, kr_spent_popularity, global_spent_popularity",
+        );
 
       if (dbError) throw dbError;
       return data as Pick<
         EventPopularityRow,
-        "event_id" | "account_id" | "kr_popularity" | "global_popularity" | "spent_popularity"
+        | "event_id"
+        | "account_id"
+        | "kr_popularity"
+        | "global_popularity"
+        | "spent_popularity"
+        | "kr_spent_popularity"
+        | "global_spent_popularity"
       >[];
     },
   });
 
   const savedByAccount = useMemo(() => {
     const map = new Map<string, EventPopularityRow>();
-
     for (const row of savedRows) {
       map.set(row.account_id, row);
     }
-
     return map;
   }, [savedRows]);
 
@@ -151,16 +175,13 @@ function EventPage() {
 
     for (const account of accounts) {
       const row = savedByAccount.get(account.id);
-      const krValue = row ? String(row.kr_popularity) : "";
-      const globalValue = row ? String(row.global_popularity) : "";
-      const spentValue = row ? String(row.spent_popularity) : "0";
-
       nextDraft[account.id] = {
         krChecked: row ? row.kr_popularity > 0 : false,
-        krPopularity: row ? (row.kr_popularity > 0 ? krValue : "") : "",
+        krPopularity: row ? (row.kr_popularity > 0 ? String(row.kr_popularity) : "") : "",
         globalChecked: row ? row.global_popularity > 0 : false,
-        globalPopularity: row ? (row.global_popularity > 0 ? globalValue : "") : "",
-        spentPopularity: spentValue,
+        globalPopularity: row ? (row.global_popularity > 0 ? String(row.global_popularity) : "") : "",
+        krSpentPopularity: row ? String(row.kr_spent_popularity ?? 0) : "0",
+        globalSpentPopularity: row ? String(row.global_spent_popularity ?? 0) : "0",
       };
     }
 
@@ -196,15 +217,21 @@ function EventPage() {
         const draft = draftByAccount[account.id] ?? defaultEventDraft;
         const rawKr = draft.krChecked ? Number(draft.krPopularity || 0) : 0;
         const rawGlobal = draft.globalChecked ? Number(draft.globalPopularity || 0) : 0;
-        const rawSpent = Number(draft.spentPopularity || 0);
+        const rawKrSpent = Number(draft.krSpentPopularity || 0);
+        const rawGlobalSpent = Number(draft.globalSpentPopularity || 0);
 
         const krPopularity = nonNegativeNumberSchema.parse(rawKr);
         const globalPopularity = nonNegativeNumberSchema.parse(rawGlobal);
-        const spentPopularity = nonNegativeNumberSchema.parse(rawSpent);
+        const krSpentPopularity = nonNegativeNumberSchema.parse(rawKrSpent);
+        const globalSpentPopularity = nonNegativeNumberSchema.parse(rawGlobalSpent);
 
-        if (spentPopularity > krPopularity + globalPopularity) {
+        if (krSpentPopularity > krPopularity) {
+          throw new Error(`KR sent popularity is higher than KR collected for ${account.gmail}.`);
+        }
+
+        if (globalSpentPopularity > globalPopularity) {
           throw new Error(
-            `Spent popularity is higher than total collected for ${account.gmail}.`,
+            `Global sent popularity is higher than Global collected for ${account.gmail}.`,
           );
         }
 
@@ -213,7 +240,9 @@ function EventPage() {
           account_id: account.id,
           kr_popularity: krPopularity,
           global_popularity: globalPopularity,
-          spent_popularity: spentPopularity,
+          kr_spent_popularity: krSpentPopularity,
+          global_spent_popularity: globalSpentPopularity,
+          spent_popularity: krSpentPopularity + globalSpentPopularity,
         };
       });
 
@@ -230,59 +259,46 @@ function EventPage() {
   });
 
   const totals = useMemo(() => {
-    let krTotal = 0;
-    let globalTotal = 0;
-    let spentTotal = 0;
+    let collectedTotal = 0;
+    let sentTotal = 0;
     let availableTotal = 0;
 
     for (const account of accounts) {
       const draft = draftByAccount[account.id] ?? defaultEventDraft;
-      const parsedKr = draft.krChecked ? Number(draft.krPopularity || 0) : 0;
-      const parsedGlobal = draft.globalChecked ? Number(draft.globalPopularity || 0) : 0;
-      const parsedSpent = Number(draft.spentPopularity || 0);
+      const collected = isKrMode
+        ? draft.krChecked
+          ? Number(draft.krPopularity || 0)
+          : 0
+        : draft.globalChecked
+          ? Number(draft.globalPopularity || 0)
+          : 0;
+      const sent = isKrMode
+        ? Number(draft.krSpentPopularity || 0)
+        : Number(draft.globalSpentPopularity || 0);
 
-      if (!Number.isNaN(parsedKr) && parsedKr >= 0) {
-        krTotal += parsedKr;
+      if (!Number.isNaN(collected) && collected >= 0) {
+        collectedTotal += collected;
       }
 
-      if (!Number.isNaN(parsedGlobal) && parsedGlobal >= 0) {
-        globalTotal += parsedGlobal;
+      if (!Number.isNaN(sent) && sent >= 0) {
+        sentTotal += sent;
       }
 
-      if (!Number.isNaN(parsedSpent) && parsedSpent >= 0) {
-        spentTotal += parsedSpent;
-      }
-
-      if (
-        !Number.isNaN(parsedKr) &&
-        parsedKr >= 0 &&
-        !Number.isNaN(parsedGlobal) &&
-        parsedGlobal >= 0 &&
-        !Number.isNaN(parsedSpent) &&
-        parsedSpent >= 0
-      ) {
-        availableTotal += Math.max(parsedKr + parsedGlobal - parsedSpent, 0);
+      if (!Number.isNaN(collected) && collected >= 0 && !Number.isNaN(sent) && sent >= 0) {
+        availableTotal += Math.max(collected - sent, 0);
       }
     }
 
-    return {
-      krTotal,
-      globalTotal,
-      spentTotal,
-      availableTotal,
-      overallTotal: krTotal + globalTotal,
-    };
-  }, [accounts, draftByAccount]);
+    return { collectedTotal, sentTotal, availableTotal };
+  }, [accounts, draftByAccount, isKrMode]);
 
   const availableAcrossAllEventsByAccount = useMemo(() => {
     const map = new Map<string, number>();
 
     for (const row of allEventRows) {
-      const available = Math.max(
-        (row.kr_popularity ?? 0) + (row.global_popularity ?? 0) - (row.spent_popularity ?? 0),
-        0,
-      );
-      map.set(row.account_id, (map.get(row.account_id) ?? 0) + available);
+      const collected = isKrMode ? (row.kr_popularity ?? 0) : (row.global_popularity ?? 0);
+      const sent = isKrMode ? (row.kr_spent_popularity ?? 0) : (row.global_spent_popularity ?? 0);
+      map.set(row.account_id, (map.get(row.account_id) ?? 0) + Math.max(collected - sent, 0));
     }
 
     if (!selectedEventId) {
@@ -291,30 +307,47 @@ function EventPage() {
 
     for (const account of accounts) {
       const savedSelectedRow = savedByAccount.get(account.id);
-      const savedSelectedAvailable = savedSelectedRow
-        ? Math.max(
-            (savedSelectedRow.kr_popularity ?? 0) +
-              (savedSelectedRow.global_popularity ?? 0) -
-              (savedSelectedRow.spent_popularity ?? 0),
-            0,
-          )
+      const savedCollected = savedSelectedRow
+        ? isKrMode
+          ? (savedSelectedRow.kr_popularity ?? 0)
+          : (savedSelectedRow.global_popularity ?? 0)
         : 0;
+      const savedSent = savedSelectedRow
+        ? isKrMode
+          ? (savedSelectedRow.kr_spent_popularity ?? 0)
+          : (savedSelectedRow.global_spent_popularity ?? 0)
+        : 0;
+      const savedAvailable = Math.max(savedCollected - savedSent, 0);
 
       const draft = draftByAccount[account.id] ?? defaultEventDraft;
-      const draftKr = draft.krChecked ? Number(draft.krPopularity || 0) : 0;
-      const draftGlobal = draft.globalChecked ? Number(draft.globalPopularity || 0) : 0;
-      const draftSpent = Number(draft.spentPopularity || 0);
+      const draftCollected = isKrMode
+        ? draft.krChecked
+          ? Number(draft.krPopularity || 0)
+          : 0
+        : draft.globalChecked
+          ? Number(draft.globalPopularity || 0)
+          : 0;
+      const draftSent = isKrMode
+        ? Number(draft.krSpentPopularity || 0)
+        : Number(draft.globalSpentPopularity || 0);
       const draftAvailable =
-        Number.isNaN(draftKr) || Number.isNaN(draftGlobal) || Number.isNaN(draftSpent)
+        Number.isNaN(draftCollected) || Number.isNaN(draftSent)
           ? 0
-          : Math.max(draftKr + draftGlobal - draftSpent, 0);
+          : Math.max(draftCollected - draftSent, 0);
 
       const baseTotal = map.get(account.id) ?? 0;
-      map.set(account.id, Math.max(baseTotal - savedSelectedAvailable + draftAvailable, 0));
+      map.set(account.id, Math.max(baseTotal - savedAvailable + draftAvailable, 0));
     }
 
     return map;
-  }, [accounts, allEventRows, draftByAccount, savedByAccount, selectedEventId]);
+  }, [
+    accounts,
+    allEventRows,
+    draftByAccount,
+    isKrMode,
+    savedByAccount,
+    selectedEventId,
+  ]);
 
   const totalAvailableAcrossAllEvents = useMemo(
     () => Array.from(availableAcrossAllEventsByAccount.values()).reduce((sum, value) => sum + value, 0),
@@ -357,14 +390,26 @@ function EventPage() {
         <section className="rounded-lg border border-border bg-card p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-semibold">Event Popularity</h1>
+              <h1 className="text-2xl font-semibold">{modeLabel} Event</h1>
               <p className="mt-2 text-sm text-muted-foreground">
-                Create an event, save all account popularity, and track used popularity by account.
+                Manage {modeLabel} event collected, sent, and available popularity by Gmail.
               </p>
             </div>
-            <Button asChild variant="outline">
-              <Link to="/">Back</Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant={isKrMode ? "default" : "outline"}>
+                <Link to="/event" search={{ mode: "kr" }}>
+                  PUBG KR Event
+                </Link>
+              </Button>
+              <Button asChild variant={isKrMode ? "outline" : "default"}>
+                <Link to="/event" search={{ mode: "global" }}>
+                  PUBG Global Event
+                </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link to="/">Back</Link>
+              </Button>
+            </div>
           </div>
         </section>
 
@@ -405,11 +450,7 @@ function EventPage() {
               {saveAllMutation.isPending ? "Saving..." : "Save all"}
             </Button>
 
-            <Button
-              variant="outline"
-              onClick={handleRefreshAll}
-              disabled={!selectedEventId || isLoadingRows}
-            >
+            <Button variant="outline" onClick={handleRefreshAll} disabled={!selectedEventId || isLoadingRows}>
               Refresh all
             </Button>
           </div>
@@ -426,46 +467,36 @@ function EventPage() {
           </p>
         </section>
 
-        <section className="grid gap-3 md:grid-cols-5">
+        <section className="grid gap-3 md:grid-cols-3">
           <div className="rounded-md border border-border bg-card p-4 text-sm">
-            <p className="text-muted-foreground">Total popularity (KR + Global)</p>
-            <p className="text-2xl font-semibold">{totals.overallTotal.toLocaleString()}</p>
+            <p className="text-muted-foreground">{modeLabel} collected</p>
+            <p className="text-2xl font-semibold">{totals.collectedTotal.toLocaleString()}</p>
           </div>
           <div className="rounded-md border border-border bg-card p-4 text-sm">
-            <p className="text-muted-foreground">PUBG KR total</p>
-            <p className="text-2xl font-semibold">{totals.krTotal.toLocaleString()}</p>
+            <p className="text-muted-foreground">{modeLabel} sent</p>
+            <p className="text-2xl font-semibold">{totals.sentTotal.toLocaleString()}</p>
           </div>
           <div className="rounded-md border border-border bg-card p-4 text-sm">
-            <p className="text-muted-foreground">PUBG Mobile total</p>
-            <p className="text-2xl font-semibold">{totals.globalTotal.toLocaleString()}</p>
-          </div>
-          <div className="rounded-md border border-border bg-card p-4 text-sm">
-            <p className="text-muted-foreground">Sent popularity</p>
-            <p className="text-2xl font-semibold">{totals.spentTotal.toLocaleString()}</p>
-          </div>
-          <div className="rounded-md border border-border bg-card p-4 text-sm">
-            <p className="text-muted-foreground">Available popularity</p>
+            <p className="text-muted-foreground">{modeLabel} available</p>
             <p className="text-2xl font-semibold">{totals.availableTotal.toLocaleString()}</p>
           </div>
         </section>
 
         <section className="rounded-lg border border-border bg-card p-4 text-sm">
-          <p className="text-muted-foreground">Stored available popularity (all events)</p>
+          <p className="text-muted-foreground">Stored available {modeLabel} (all events)</p>
           <p className="text-2xl font-semibold">{totalAvailableAcrossAllEvents.toLocaleString()}</p>
         </section>
 
         <section className="rounded-lg border border-border bg-card p-5">
-          <h2 className="text-lg font-semibold">Account event details</h2>
+          <h2 className="text-lg font-semibold">{modeLabel} account event details</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Enter collected popularity and how much you sent from each Gmail ID.
+            Enter collected and sent popularity for each Gmail ID in this mode.
           </p>
 
           {isLoading ? <p className="mt-4 text-sm text-muted-foreground">Loading accounts...</p> : null}
           {error ? <p className="mt-4 text-sm text-destructive">{error.message}</p> : null}
           {savedRowsError ? <p className="mt-4 text-sm text-destructive">{savedRowsError.message}</p> : null}
-          {allEventRowsError ? (
-            <p className="mt-4 text-sm text-destructive">{allEventRowsError.message}</p>
-          ) : null}
+          {allEventRowsError ? <p className="mt-4 text-sm text-destructive">{allEventRowsError.message}</p> : null}
           {isLoadingRows ? <p className="mt-4 text-sm text-muted-foreground">Loading saved event data...</p> : null}
           {isLoadingAllEventRows ? (
             <p className="mt-4 text-sm text-muted-foreground">Loading all-event availability...</p>
@@ -477,8 +508,7 @@ function EventPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Gmail</TableHead>
-                    <TableHead className="text-right">PUBG KR Event</TableHead>
-                    <TableHead className="text-right">PUBG Mobile Event</TableHead>
+                    <TableHead className="text-right">{modeLabel} Event</TableHead>
                     <TableHead className="text-right">Sent</TableHead>
                     <TableHead className="text-right">Available</TableHead>
                     <TableHead className="text-right">Available (All Events)</TableHead>
@@ -487,15 +517,16 @@ function EventPage() {
                 <TableBody>
                   {accounts.map((account) => {
                     const draft = getDraft(account.id);
-                    const parsedKr = draft.krChecked ? Number(draft.krPopularity || 0) : 0;
-                    const parsedGlobal = draft.globalChecked ? Number(draft.globalPopularity || 0) : 0;
-                    const parsedSpent = Number(draft.spentPopularity || 0);
+                    const checked = isKrMode ? draft.krChecked : draft.globalChecked;
+                    const popularityValue = isKrMode ? draft.krPopularity : draft.globalPopularity;
+                    const sentValue = isKrMode ? draft.krSpentPopularity : draft.globalSpentPopularity;
+                    const parsedCollected = checked ? Number(popularityValue || 0) : 0;
+                    const parsedSent = Number(sentValue || 0);
                     const availablePopularity =
-                      Number.isNaN(parsedKr) || Number.isNaN(parsedGlobal) || Number.isNaN(parsedSpent)
+                      Number.isNaN(parsedCollected) || Number.isNaN(parsedSent)
                         ? 0
-                        : Math.max(parsedKr + parsedGlobal - parsedSpent, 0);
-                    const availableAcrossAllEvents =
-                      availableAcrossAllEventsByAccount.get(account.id) ?? 0;
+                        : Math.max(parsedCollected - parsedSent, 0);
+                    const availableAcrossAllEvents = availableAcrossAllEventsByAccount.get(account.id) ?? 0;
 
                     return (
                       <TableRow key={account.id}>
@@ -506,9 +537,11 @@ function EventPage() {
                             <label className="flex items-center gap-2 text-xs text-muted-foreground">
                               <input
                                 type="checkbox"
-                                checked={draft.krChecked}
+                                checked={checked}
                                 onChange={(event) =>
-                                  updateDraft(account.id, { krChecked: event.target.checked })
+                                  isKrMode
+                                    ? updateDraft(account.id, { krChecked: event.target.checked })
+                                    : updateDraft(account.id, { globalChecked: event.target.checked })
                                 }
                                 disabled={!selectedEventId}
                               />
@@ -519,42 +552,13 @@ function EventPage() {
                               type="number"
                               min={0}
                               placeholder="Popularity"
-                              value={draft.krPopularity}
+                              value={popularityValue}
                               onChange={(event) =>
-                                updateDraft(account.id, { krPopularity: event.target.value })
+                                isKrMode
+                                  ? updateDraft(account.id, { krPopularity: event.target.value })
+                                  : updateDraft(account.id, { globalPopularity: event.target.value })
                               }
-                              disabled={!selectedEventId || !draft.krChecked}
-                            />
-                          </div>
-                        </TableCell>
-
-                        <TableCell>
-                          <div className="flex items-center justify-end gap-2">
-                            <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <input
-                                type="checkbox"
-                                checked={draft.globalChecked}
-                                onChange={(event) =>
-                                  updateDraft(account.id, {
-                                    globalChecked: event.target.checked,
-                                  })
-                                }
-                                disabled={!selectedEventId}
-                              />
-                              Check
-                            </label>
-                            <Input
-                              className="w-32 text-right"
-                              type="number"
-                              min={0}
-                              placeholder="Popularity"
-                              value={draft.globalPopularity}
-                              onChange={(event) =>
-                                updateDraft(account.id, {
-                                  globalPopularity: event.target.value,
-                                })
-                              }
-                              disabled={!selectedEventId || !draft.globalChecked}
+                              disabled={!selectedEventId || !checked}
                             />
                           </div>
                         </TableCell>
@@ -566,9 +570,11 @@ function EventPage() {
                               type="number"
                               min={0}
                               placeholder="Used"
-                              value={draft.spentPopularity}
+                              value={sentValue}
                               onChange={(event) =>
-                                updateDraft(account.id, { spentPopularity: event.target.value })
+                                isKrMode
+                                  ? updateDraft(account.id, { krSpentPopularity: event.target.value })
+                                  : updateDraft(account.id, { globalSpentPopularity: event.target.value })
                               }
                               disabled={!selectedEventId}
                             />
