@@ -110,7 +110,8 @@ function EventPage() {
 
   useEffect(() => {
     const selected = events.find((event) => event.id === selectedEventId);
-    setEditEventName(selected?.name ?? "");
+    const nextName = selected?.name ?? "";
+    setEditEventName((prev) => (prev === nextName ? prev : nextName));
   }, [events, selectedEventId]);
 
   const {
