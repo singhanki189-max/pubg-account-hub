@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import pubgHeroBg from "@/assets/pubg-hero-bg.png.asset.json";
 
 type PubgAccount = Tables<"pubg_accounts">;
 type PubgEvent = Tables<"pubg_events">;
@@ -446,9 +447,12 @@ function EventPage() {
   const saveAllError = saveAllMutation.error?.message;
 
   return (
-    <div className="min-h-screen bg-background px-4 py-8 text-foreground">
+    <div
+      className="min-h-screen premium-page-bg px-4 py-8 text-foreground"
+      style={{ ["--pubg-bg-image" as string]: `url(${pubgHeroBg.url})` }}
+    >
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-        <section className="rounded-lg border border-border bg-card p-5">
+        <section className="premium-surface rounded-lg border p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-semibold">{modeLabel} Event</h1>
@@ -474,7 +478,7 @@ function EventPage() {
           </div>
         </section>
 
-        <section className="rounded-lg border border-border bg-card p-5">
+        <section className="premium-surface rounded-lg border p-5">
           <h2 className="text-lg font-semibold">Event setup</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
             <Input
@@ -558,26 +562,26 @@ function EventPage() {
         </section>
 
         <section className="grid gap-3 md:grid-cols-3">
-          <div className="rounded-md border border-border bg-card p-4 text-sm">
+          <div className="premium-surface rounded-md border p-4 text-sm">
             <p className="text-muted-foreground">{modeLabel} collected</p>
             <p className="text-2xl font-semibold">{totals.collectedTotal.toLocaleString()}</p>
           </div>
-          <div className="rounded-md border border-border bg-card p-4 text-sm">
+          <div className="premium-surface rounded-md border p-4 text-sm">
             <p className="text-muted-foreground">{modeLabel} sent</p>
             <p className="text-2xl font-semibold">{totals.sentTotal.toLocaleString()}</p>
           </div>
-          <div className="rounded-md border border-border bg-card p-4 text-sm">
+          <div className="premium-surface rounded-md border p-4 text-sm">
             <p className="text-muted-foreground">{modeLabel} available</p>
             <p className="text-2xl font-semibold">{totals.availableTotal.toLocaleString()}</p>
           </div>
         </section>
 
-        <section className="rounded-lg border border-border bg-card p-4 text-sm">
+        <section className="premium-surface rounded-lg border p-4 text-sm">
           <p className="text-muted-foreground">Stored available {modeLabel} (all events)</p>
           <p className="text-2xl font-semibold">{totalAvailableAcrossAllEvents.toLocaleString()}</p>
         </section>
 
-        <section className="rounded-lg border border-border bg-card p-5">
+        <section className="premium-surface rounded-lg border p-5">
           <h2 className="text-lg font-semibold">{modeLabel} account event details</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Enter collected and sent popularity for each Gmail ID in this mode.

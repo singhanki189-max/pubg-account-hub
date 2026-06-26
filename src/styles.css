@@ -95,6 +95,9 @@
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
+  --premium-overlay-start: oklch(0.2 0.03 255 / 0.94);
+  --premium-overlay-end: oklch(0.14 0.02 258 / 0.9);
+  --premium-highlight: oklch(0.73 0.11 85 / 0.2);
 }
 
 .dark {
@@ -130,6 +133,9 @@
   --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.551 0.027 264.364);
+  --premium-overlay-start: oklch(0.13 0.03 255 / 0.95);
+  --premium-overlay-end: oklch(0.09 0.02 258 / 0.92);
+  --premium-highlight: oklch(0.8 0.12 85 / 0.24);
 }
 
 @layer base {
@@ -141,4 +147,20 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
   }
+}
+
+@utility premium-page-bg {
+  background-image:
+    radial-gradient(circle at top right, var(--premium-highlight), transparent 42%),
+    linear-gradient(130deg, var(--premium-overlay-start), var(--premium-overlay-end)),
+    var(--pubg-bg-image);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+@utility premium-surface {
+  background: color-mix(in oklab, var(--card) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-color: color-mix(in oklab, var(--primary) 25%, var(--border));
 }
