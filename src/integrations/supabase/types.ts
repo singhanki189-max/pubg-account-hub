@@ -47,6 +47,75 @@ export type Database = {
         }
         Relationships: []
       }
+      pubg_event_account_popularity: {
+        Row: {
+          account_id: string
+          created_at: string
+          event_id: string
+          global_popularity: number
+          id: string
+          kr_popularity: number
+          spent_popularity: number
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          event_id: string
+          global_popularity?: number
+          id?: string
+          kr_popularity?: number
+          spent_popularity?: number
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          event_id?: string
+          global_popularity?: number
+          id?: string
+          kr_popularity?: number
+          spent_popularity?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pubg_event_account_popularity_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "pubg_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pubg_event_account_popularity_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "pubg_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pubg_events: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
