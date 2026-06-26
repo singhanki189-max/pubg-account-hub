@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
@@ -291,7 +291,12 @@ function Index() {
     <div className="min-h-screen bg-background px-4 py-8 text-foreground">
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-6">
         <section className="rounded-lg border border-border bg-card p-5">
-          <h1 className="text-2xl font-semibold">PUBG Account Manager</h1>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h1 className="text-2xl font-semibold">PUBG Account Manager</h1>
+            <Button asChild>
+              <Link to="/event">Event</Link>
+            </Button>
+          </div>
           <p className="mt-2 text-sm text-muted-foreground">
             Save Gmail, UC, cards, and mix pop, then filter to quickly find target accounts.
           </p>
