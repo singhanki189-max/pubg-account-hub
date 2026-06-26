@@ -104,7 +104,13 @@ function EventPage() {
   });
 
   useEffect(() => {
-    if (!selectedEventId && events.length > 0) {
+    if (events.length === 0) {
+      if (selectedEventId) setSelectedEventId("");
+      return;
+    }
+
+    const hasSelectedInCurrentMode = events.some((event) => event.id === selectedEventId);
+    if (!hasSelectedInCurrentMode) {
       setSelectedEventId(events[0].id);
     }
   }, [events, selectedEventId]);
