@@ -90,11 +90,12 @@ function EventPage() {
     isLoading: isLoadingEvents,
     error: eventsError,
   } = useQuery({
-    queryKey: ["pubg_events"],
+    queryKey: ["pubg_events", mode],
     queryFn: async () => {
       const { data, error: dbError } = await supabase
         .from("pubg_events")
         .select("id, name, created_at, updated_at")
+        .eq("mode", mode)
         .order("created_at", { ascending: false });
 
       if (dbError) throw dbError;
@@ -202,7 +203,7 @@ function EventPage() {
 
       const { data, error: dbError } = await supabase
         .from("pubg_events")
-        .insert({ name: trimmedName })
+        .insert({ name: trimmedName, mode })
         .select("id, name, created_at, updated_at")
         .single();
 
@@ -212,7 +213,7 @@ function EventPage() {
     onSuccess: (createdEvent) => {
       setNewEventName("");
       setSelectedEventId(createdEvent.id);
-      queryClient.invalidateQueries({ queryKey: ["pubg_events"] });
+      queryClient.invalidateQueries({ queryKey: ["pubg_events", mode] });
     },
   });
 
@@ -230,7 +231,7 @@ function EventPage() {
       if (dbError) throw dbError;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pubg_events"] });
+      queryClient.invalidateQueries({ queryKey: ["pubg_events", mode] });
     },
   });
 
@@ -255,7 +256,7 @@ function EventPage() {
     onSuccess: () => {
       setSelectedEventId("");
       setEditEventName("");
-      queryClient.invalidateQueries({ queryKey: ["pubg_events"] });
+      queryClient.invalidateQueries({ queryKey: ["pubg_events", mode] });
       queryClient.invalidateQueries({ queryKey: ["pubg_event_rows"] });
       queryClient.invalidateQueries({ queryKey: ["pubg_event_rows_all_accounts"] });
     },
