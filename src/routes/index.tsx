@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import pubgHeroBg from "@/assets/pubg-hero-bg.png.asset.json";
 
 type PubgAccount = Tables<"pubg_accounts">;
 
@@ -288,9 +289,12 @@ function Index() {
   const editSaveError = updateAccountMutation.error?.message;
 
   return (
-    <div className="min-h-screen bg-background px-4 py-8 text-foreground">
+    <div
+      className="min-h-screen premium-page-bg px-4 py-8 text-foreground"
+      style={{ ["--pubg-bg-image" as string]: `url(${pubgHeroBg.url})` }}
+    >
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-        <section className="rounded-lg border border-border bg-card p-5">
+        <section className="premium-surface rounded-lg border p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h1 className="text-2xl font-semibold">PUBG Account Manager</h1>
             <div className="flex flex-wrap gap-2">
@@ -311,7 +315,7 @@ function Index() {
           </p>
         </section>
 
-        <section className="rounded-lg border border-border bg-card p-5">
+        <section className="premium-surface rounded-lg border p-5">
           <h2 className="text-lg font-semibold">Add account</h2>
           <form
             className="mt-4 grid gap-3 md:grid-cols-6"
@@ -353,7 +357,7 @@ function Index() {
           {saveError ? <p className="mt-3 text-sm text-destructive">{saveError}</p> : null}
         </section>
 
-        <section className="rounded-lg border border-border bg-card p-5">
+        <section className="premium-surface rounded-lg border p-5">
           <h2 className="text-lg font-semibold">Bulk add accounts</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Paste one account per line. Format: gmail,email_level,uc,cards,mix_pop (numbers are optional).
@@ -380,7 +384,7 @@ function Index() {
           {bulkSaveError ? <p className="mt-3 text-sm text-destructive">{bulkSaveError}</p> : null}
         </section>
 
-        <section className="rounded-lg border border-border bg-card p-5">
+        <section className="premium-surface rounded-lg border p-5">
           <h2 className="text-lg font-semibold">Filter accounts</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-4">
             <Input
@@ -436,7 +440,7 @@ function Index() {
           </div>
         </section>
 
-        <section className="rounded-lg border border-border bg-card p-5">
+        <section className="premium-surface rounded-lg border p-5">
           <h2 className="text-lg font-semibold">Results</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Click <strong>Edit</strong> on any row to update Gmail details, email level, UC, cards, or mix pop.
@@ -553,7 +557,7 @@ function Index() {
           ) : null}
         </section>
 
-        <section className="grid gap-4 rounded-lg border border-border bg-card p-5 md:grid-cols-2">
+        <section className="premium-surface grid gap-4 rounded-lg border p-5 md:grid-cols-2">
           <div>
             <h2 className="text-base font-semibold">Gmails with 50k cards</h2>
             <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
