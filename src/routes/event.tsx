@@ -69,6 +69,7 @@ function EventPage() {
   const queryClient = useQueryClient();
   const [newEventName, setNewEventName] = useState("");
   const [selectedEventId, setSelectedEventId] = useState<string>("");
+  const [editEventName, setEditEventName] = useState("");
   const [draftByAccount, setDraftByAccount] = useState<Record<string, EventDraft>>({});
 
   const { data: accounts = [], isLoading, error } = useQuery({
@@ -105,6 +106,11 @@ function EventPage() {
     if (!selectedEventId && events.length > 0) {
       setSelectedEventId(events[0].id);
     }
+  }, [events, selectedEventId]);
+
+  useEffect(() => {
+    const selected = events.find((event) => event.id === selectedEventId);
+    setEditEventName(selected?.name ?? "");
   }, [events, selectedEventId]);
 
   const {
@@ -206,6 +212,51 @@ function EventPage() {
       setNewEventName("");
       setSelectedEventId(createdEvent.id);
       queryClient.invalidateQueries({ queryKey: ["pubg_events"] });
+    },
+  });
+
+  const updateEventNameMutation = useMutation({
+    mutationFn: async () => {
+      const trimmedName = editEventName.trim();
+      if (!selectedEventId) throw new Error("Please select an event first.");
+      if (!trimmedName) throw new Error("Please enter an event name.");
+
+      const { error: dbError } = await supabase
+        .from("pubg_events")
+        .update({ name: trimmedName })
+        .eq("id", selectedEventId);
+
+      if (dbError) throw dbError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pubg_events"] });
+    },
+  });
+
+  const deleteEventMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedEventId) throw new Error("Please select an event first.");
+
+      const { error: rowsDeleteError } = await supabase
+        .from("pubg_event_account_popularity")
+        .delete()
+        .eq("event_id", selectedEventId);
+
+      if (rowsDeleteError) throw rowsDeleteError;
+
+      const { error: eventDeleteError } = await supabase
+        .from("pubg_events")
+        .delete()
+        .eq("id", selectedEventId);
+
+      if (eventDeleteError) throw eventDeleteError;
+    },
+    onSuccess: () => {
+      setSelectedEventId("");
+      setEditEventName("");
+      queryClient.invalidateQueries({ queryKey: ["pubg_events"] });
+      queryClient.invalidateQueries({ queryKey: ["pubg_event_rows"] });
+      queryClient.invalidateQueries({ queryKey: ["pubg_event_rows_all_accounts"] });
     },
   });
 
@@ -382,6 +433,8 @@ function EventPage() {
   );
 
   const createEventError = createEventMutation.error?.message;
+  const updateEventError = updateEventNameMutation.error?.message;
+  const deleteEventError = deleteEventMutation.error?.message;
   const saveAllError = saveAllMutation.error?.message;
 
   return (
@@ -455,9 +508,38 @@ function EventPage() {
             </Button>
           </div>
 
+          <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto_auto]">
+            <Input
+              value={editEventName}
+              onChange={(event) => setEditEventName(event.target.value)}
+              placeholder="Edit selected event name"
+              disabled={!selectedEventId}
+            />
+            <Button
+              variant="outline"
+              onClick={() => updateEventNameMutation.mutate()}
+              disabled={!selectedEventId || updateEventNameMutation.isPending || !editEventName.trim()}
+            >
+              {updateEventNameMutation.isPending ? "Updating..." : "Update name"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!selectedEventId) return;
+                const ok = window.confirm("Delete this event and all saved rows for this event?");
+                if (ok) deleteEventMutation.mutate();
+              }}
+              disabled={!selectedEventId || deleteEventMutation.isPending}
+            >
+              {deleteEventMutation.isPending ? "Deleting..." : "Delete event"}
+            </Button>
+          </div>
+
           {isLoadingEvents ? <p className="mt-3 text-sm text-muted-foreground">Loading events...</p> : null}
           {eventsError ? <p className="mt-3 text-sm text-destructive">{eventsError.message}</p> : null}
           {createEventError ? <p className="mt-3 text-sm text-destructive">{createEventError}</p> : null}
+          {updateEventError ? <p className="mt-3 text-sm text-destructive">{updateEventError}</p> : null}
+          {deleteEventError ? <p className="mt-3 text-sm text-destructive">{deleteEventError}</p> : null}
           {saveAllError ? <p className="mt-3 text-sm text-destructive">{saveAllError}</p> : null}
 
           <p className="mt-3 text-sm text-muted-foreground">
