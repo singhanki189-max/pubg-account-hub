@@ -112,6 +112,25 @@ function EventPage() {
     },
   });
 
+  const {
+    data: allEventRows = [],
+    isLoading: isLoadingAllEventRows,
+    error: allEventRowsError,
+  } = useQuery({
+    queryKey: ["pubg_event_rows_all_accounts"],
+    queryFn: async () => {
+      const { data, error: dbError } = await supabase
+        .from("pubg_event_account_popularity")
+        .select("account_id, kr_popularity, global_popularity, spent_popularity");
+
+      if (dbError) throw dbError;
+      return data as Pick<
+        EventPopularityRow,
+        "account_id" | "kr_popularity" | "global_popularity" | "spent_popularity"
+      >[];
+    },
+  });
+
   const savedByAccount = useMemo(() => {
     const map = new Map<string, EventPopularityRow>();
 
@@ -254,6 +273,25 @@ function EventPage() {
     };
   }, [accounts, draftByAccount]);
 
+  const availableAcrossAllEventsByAccount = useMemo(() => {
+    const map = new Map<string, number>();
+
+    for (const row of allEventRows) {
+      const available = Math.max(
+        (row.kr_popularity ?? 0) + (row.global_popularity ?? 0) - (row.spent_popularity ?? 0),
+        0,
+      );
+      map.set(row.account_id, (map.get(row.account_id) ?? 0) + available);
+    }
+
+    return map;
+  }, [allEventRows]);
+
+  const totalAvailableAcrossAllEvents = useMemo(
+    () => Array.from(availableAcrossAllEventsByAccount.values()).reduce((sum, value) => sum + value, 0),
+    [availableAcrossAllEventsByAccount],
+  );
+
   function getDraft(accountId: string) {
     return draftByAccount[accountId] ?? defaultEventDraft;
   }
@@ -379,6 +417,11 @@ function EventPage() {
           </div>
         </section>
 
+        <section className="rounded-lg border border-border bg-card p-4 text-sm">
+          <p className="text-muted-foreground">Stored available popularity (all events)</p>
+          <p className="text-2xl font-semibold">{totalAvailableAcrossAllEvents.toLocaleString()}</p>
+        </section>
+
         <section className="rounded-lg border border-border bg-card p-5">
           <h2 className="text-lg font-semibold">Account event details</h2>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -388,7 +431,13 @@ function EventPage() {
           {isLoading ? <p className="mt-4 text-sm text-muted-foreground">Loading accounts...</p> : null}
           {error ? <p className="mt-4 text-sm text-destructive">{error.message}</p> : null}
           {savedRowsError ? <p className="mt-4 text-sm text-destructive">{savedRowsError.message}</p> : null}
+          {allEventRowsError ? (
+            <p className="mt-4 text-sm text-destructive">{allEventRowsError.message}</p>
+          ) : null}
           {isLoadingRows ? <p className="mt-4 text-sm text-muted-foreground">Loading saved event data...</p> : null}
+          {isLoadingAllEventRows ? (
+            <p className="mt-4 text-sm text-muted-foreground">Loading all-event availability...</p>
+          ) : null}
 
           {!isLoading && !error ? (
             <div className="mt-4 max-h-[650px] overflow-auto rounded-md border border-border">
@@ -400,6 +449,7 @@ function EventPage() {
                     <TableHead className="text-right">PUBG Mobile Event</TableHead>
                     <TableHead className="text-right">Sent</TableHead>
                     <TableHead className="text-right">Available</TableHead>
+                    <TableHead className="text-right">Available (All Events)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -412,6 +462,8 @@ function EventPage() {
                       Number.isNaN(parsedKr) || Number.isNaN(parsedGlobal) || Number.isNaN(parsedSpent)
                         ? 0
                         : Math.max(parsedKr + parsedGlobal - parsedSpent, 0);
+                    const availableAcrossAllEvents =
+                      availableAcrossAllEventsByAccount.get(account.id) ?? 0;
 
                     return (
                       <TableRow key={account.id}>
@@ -493,6 +545,10 @@ function EventPage() {
 
                         <TableCell className="text-right font-medium">
                           {availablePopularity.toLocaleString()}
+                        </TableCell>
+
+                        <TableCell className="text-right font-medium">
+                          {availableAcrossAllEvents.toLocaleString()}
                         </TableCell>
                       </TableRow>
                     );
