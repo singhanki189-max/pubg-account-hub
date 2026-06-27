@@ -101,14 +101,14 @@ function EventPage() {
   } = useQuery({
     queryKey: ["pubg_events", mode],
     queryFn: async () => {
-      const { data, error: dbError } = await supabase
+      const { data, error: dbError } = await supabaseAny
         .from("pubg_events")
-        .select("id, name, created_at, updated_at")
+        .select("id, name, mode, reward_type, fixed_popularity, created_at, updated_at")
         .eq("mode", mode)
         .order("created_at", { ascending: false });
 
       if (dbError) throw dbError;
-      return data as PubgEvent[];
+      return data as PubgEventWithConfig[];
     },
   });
 
