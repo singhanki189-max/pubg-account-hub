@@ -524,12 +524,36 @@ function EventPage() {
 
         <section className="premium-surface rounded-lg border p-5">
           <h2 className="text-lg font-semibold">Event setup</h2>
-          <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+          <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto_auto]">
             <Input
               value={newEventName}
               onChange={(event) => setNewEventName(event.target.value)}
               placeholder="Write event name"
             />
+            <select
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              value={newEventRewardType}
+              onChange={(event) => setNewEventRewardType(event.target.value as "fixed" | "variable")}
+            >
+              <option value="variable">Variable</option>
+              <option value="fixed">Fixed</option>
+            </select>
+            <Input
+              type="number"
+              min={0}
+              value={newEventFixedPopularity}
+              onChange={(event) => setNewEventFixedPopularity(event.target.value)}
+              placeholder="Fixed popularity"
+              disabled={newEventRewardType !== "fixed"}
+            />
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
+            <p className="text-sm text-muted-foreground">
+              {newEventRewardType === "fixed"
+                ? "Fixed: checking mission auto-adds this popularity for that Gmail."
+                : "Variable: set popularity manually per Gmail and click Set."}
+            </p>
             <Button
               onClick={() => createEventMutation.mutate()}
               disabled={createEventMutation.isPending || !newEventName.trim()}
@@ -600,7 +624,7 @@ function EventPage() {
 
           <p className="mt-3 text-sm text-muted-foreground">
             {selectedEvent
-              ? `Selected: ${selectedEvent.name}. Saved values stay until you change them and click Save all.`
+              ? `Selected: ${selectedEvent.name} (${selectedEventRewardType === "fixed" ? `Fixed ${selectedEventFixedPopularity}` : "Variable"}). Saved values stay until you change them and click Save all.`
               : "Create or select an event to start entering popularity."}
           </p>
         </section>
@@ -631,6 +655,14 @@ function EventPage() {
             Enter collected and sent popularity for each Gmail ID in this mode.
           </p>
 
+          <div className="mt-4 max-w-sm">
+            <Input
+              value={gmailFilter}
+              onChange={(event) => setGmailFilter(event.target.value)}
+              placeholder="Search gmail"
+            />
+          </div>
+
           {isLoading ? <p className="mt-4 text-sm text-muted-foreground">Loading accounts...</p> : null}
           {error ? <p className="mt-4 text-sm text-destructive">{error.message}</p> : null}
           {savedRowsError ? <p className="mt-4 text-sm text-destructive">{savedRowsError.message}</p> : null}
@@ -653,7 +685,7 @@ function EventPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {accounts.map((account) => {
+                  {filteredAccounts.map((account) => {
                     const draft = getDraft(account.id);
                     const checked = isKrMode ? draft.krChecked : draft.globalChecked;
                     const popularityValue = isKrMode ? draft.krPopularity : draft.globalPopularity;
@@ -676,11 +708,32 @@ function EventPage() {
                               <input
                                 type="checkbox"
                                 checked={checked}
-                                onChange={(event) =>
-                                  isKrMode
-                                    ? updateDraft(account.id, { krChecked: event.target.checked })
-                                    : updateDraft(account.id, { globalChecked: event.target.checked })
-                                }
+                                onChange={(event) => {
+                                  const isChecked = event.target.checked;
+
+                                  if (isKrMode) {
+                                    updateDraft(account.id, {
+                                      krChecked: isChecked,
+                                      krPopularity:
+                                        isChecked && selectedEventRewardType === "fixed"
+                                          ? String(selectedEventFixedPopularity)
+                                          : isChecked
+                                            ? draft.krPopularity
+                                            : "",
+                                    });
+                                    return;
+                                  }
+
+                                  updateDraft(account.id, {
+                                    globalChecked: isChecked,
+                                    globalPopularity:
+                                      isChecked && selectedEventRewardType === "fixed"
+                                        ? String(selectedEventFixedPopularity)
+                                        : isChecked
+                                          ? draft.globalPopularity
+                                          : "",
+                                  });
+                                }}
                                 disabled={!selectedEventId}
                               />
                               Check
@@ -696,8 +749,17 @@ function EventPage() {
                                   ? updateDraft(account.id, { krPopularity: event.target.value })
                                   : updateDraft(account.id, { globalPopularity: event.target.value })
                               }
-                              disabled={!selectedEventId || !checked}
+                              disabled={!selectedEventId || !checked || selectedEventRewardType === "fixed"}
                             />
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleSetPopularity(account.id)}
+                              disabled={!selectedEventId}
+                            >
+                              Set
+                            </Button>
                           </div>
                         </TableCell>
 
