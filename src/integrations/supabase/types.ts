@@ -104,23 +104,29 @@ export type Database = {
       pubg_events: {
         Row: {
           created_at: string
+          fixed_popularity: number
           id: string
           mode: string
           name: string
+          reward_type: string
           updated_at: string
         }
         Insert: {
           created_at?: string
+          fixed_popularity?: number
           id?: string
           mode?: string
           name: string
+          reward_type?: string
           updated_at?: string
         }
         Update: {
           created_at?: string
+          fixed_popularity?: number
           id?: string
           mode?: string
           name?: string
+          reward_type?: string
           updated_at?: string
         }
         Relationships: []
