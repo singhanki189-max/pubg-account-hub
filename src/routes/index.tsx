@@ -85,6 +85,7 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const queryClient = useQueryClient();
+  const cardPopularityPerCard = 50_000;
 
   const [gmail, setGmail] = useState("");
   const [emailLevel, setEmailLevel] = useState("0");
@@ -115,6 +116,21 @@ function Index() {
 
       if (dbError) throw dbError;
       return data as PubgAccount[];
+    },
+  });
+
+  const { data: allEventRows = [] } = useQuery({
+    queryKey: ["pubg_event_rows_all_accounts"],
+    queryFn: async () => {
+      const { data, error: dbError } = await supabase
+        .from("pubg_event_account_popularity")
+        .select("account_id, kr_popularity, global_popularity, kr_spent_popularity, global_spent_popularity");
+
+      if (dbError) throw dbError;
+      return data as Pick<
+        Tables<"pubg_event_account_popularity">,
+        "account_id" | "kr_popularity" | "global_popularity" | "kr_spent_popularity" | "global_spent_popularity"
+      >[];
     },
   });
 
@@ -283,6 +299,27 @@ function Index() {
     () => accounts.reduce((sum, account) => sum + account.mix_pop, 0),
     [accounts],
   );
+  const totalCardsPopularity = useMemo(() => totalCards * cardPopularityPerCard, [cardPopularityPerCard, totalCards]);
+  const totalAvailableKrPopularity = useMemo(
+    () =>
+      allEventRows.reduce(
+        (sum, row) => sum + Math.max((row.kr_popularity ?? 0) - (row.kr_spent_popularity ?? 0), 0),
+        0,
+      ),
+    [allEventRows],
+  );
+  const totalAvailableGlobalPopularity = useMemo(
+    () =>
+      allEventRows.reduce(
+        (sum, row) => sum + Math.max((row.global_popularity ?? 0) - (row.global_spent_popularity ?? 0), 0),
+        0,
+      ),
+    [allEventRows],
+  );
+  const totalOverallPopularity = useMemo(
+    () => totalCardsPopularity + totalAvailableKrPopularity + totalAvailableGlobalPopularity,
+    [totalAvailableGlobalPopularity, totalAvailableKrPopularity, totalCardsPopularity],
+  );
 
   const saveError = createAccountMutation.error?.message;
   const bulkSaveError = bulkCreateMutation.error?.message;
@@ -313,6 +350,25 @@ function Index() {
           <p className="mt-2 text-sm text-muted-foreground">
             Save Gmail, UC, cards, and mix pop, then filter to quickly find target accounts.
           </p>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
+            <div className="rounded-md border border-border bg-muted p-3 text-sm">
+              <p className="text-muted-foreground">Cards popularity ({cardPopularityPerCard.toLocaleString()} each)</p>
+              <p className="text-xl font-semibold">{totalCardsPopularity.toLocaleString()}</p>
+            </div>
+            <div className="rounded-md border border-border bg-muted p-3 text-sm">
+              <p className="text-muted-foreground">Available PUBG KR popularity</p>
+              <p className="text-xl font-semibold">{totalAvailableKrPopularity.toLocaleString()}</p>
+            </div>
+            <div className="rounded-md border border-border bg-muted p-3 text-sm">
+              <p className="text-muted-foreground">Available PUBG Global popularity</p>
+              <p className="text-xl font-semibold">{totalAvailableGlobalPopularity.toLocaleString()}</p>
+            </div>
+            <div className="rounded-md border border-border bg-muted p-3 text-sm">
+              <p className="text-muted-foreground">Total popularity (cards + KR + global)</p>
+              <p className="text-xl font-semibold">{totalOverallPopularity.toLocaleString()}</p>
+            </div>
+          </div>
         </section>
 
         <section className="premium-surface rounded-lg border p-5">
