@@ -1,5 +1,5 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
@@ -79,6 +79,8 @@ function EventPage() {
   const [editEventName, setEditEventName] = useState("");
   const [gmailFilter, setGmailFilter] = useState("");
   const [draftByAccount, setDraftByAccount] = useState<Record<string, EventDraft>>({});
+  const [lastAutoSavedAt, setLastAutoSavedAt] = useState<Date | null>(null);
+  const lastSavedSnapshotRef = useRef<string>("");
 
   const { data: accounts = [], isLoading, error } = useQuery({
     queryKey: ["pubg_accounts"],
@@ -328,10 +330,109 @@ function EventPage() {
       if (dbError) throw dbError;
     },
     onSuccess: () => {
+      lastSavedSnapshotRef.current = draftSnapshot;
+      setLastAutoSavedAt(new Date());
       queryClient.invalidateQueries({ queryKey: ["pubg_event_rows", selectedEventId] });
       queryClient.invalidateQueries({ queryKey: ["pubg_event_rows_all_accounts"] });
     },
   });
+
+  const autoSaveMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedEventId) throw new Error("Please create or select an event first.");
+
+      const upsertRows = accounts.map((account) => {
+        const draft = draftByAccount[account.id] ?? defaultEventDraft;
+        const rawKr = draft.krChecked ? Number(draft.krPopularity || 0) : 0;
+        const rawGlobal = draft.globalChecked ? Number(draft.globalPopularity || 0) : 0;
+        const rawKrSpent = Number(draft.krSpentPopularity || 0);
+        const rawGlobalSpent = Number(draft.globalSpentPopularity || 0);
+
+        const krPopularity = nonNegativeNumberSchema.parse(rawKr);
+        const globalPopularity = nonNegativeNumberSchema.parse(rawGlobal);
+        const krSpentPopularity = nonNegativeNumberSchema.parse(rawKrSpent);
+        const globalSpentPopularity = nonNegativeNumberSchema.parse(rawGlobalSpent);
+
+        if (krSpentPopularity > krPopularity) {
+          throw new Error(`KR sent popularity is higher than KR collected for ${account.gmail}.`);
+        }
+
+        if (globalSpentPopularity > globalPopularity) {
+          throw new Error(
+            `Global sent popularity is higher than Global collected for ${account.gmail}.`,
+          );
+        }
+
+        return {
+          event_id: selectedEventId,
+          account_id: account.id,
+          kr_popularity: krPopularity,
+          global_popularity: globalPopularity,
+          kr_spent_popularity: krSpentPopularity,
+          global_spent_popularity: globalSpentPopularity,
+          spent_popularity: krSpentPopularity + globalSpentPopularity,
+        };
+      });
+
+      const { error: dbError } = await supabase
+        .from("pubg_event_account_popularity")
+        .upsert(upsertRows, { onConflict: "event_id,account_id" });
+
+      if (dbError) throw dbError;
+    },
+    onSuccess: () => {
+      lastSavedSnapshotRef.current = draftSnapshot;
+      setLastAutoSavedAt(new Date());
+    },
+  });
+
+  const draftSnapshot = useMemo(() => {
+    if (!selectedEventId || accounts.length === 0) return "";
+
+    return JSON.stringify(
+      accounts.map((account) => {
+        const draft = draftByAccount[account.id] ?? defaultEventDraft;
+        return {
+          accountId: account.id,
+          krChecked: draft.krChecked,
+          krPopularity: draft.krPopularity,
+          globalChecked: draft.globalChecked,
+          globalPopularity: draft.globalPopularity,
+          krSpentPopularity: draft.krSpentPopularity,
+          globalSpentPopularity: draft.globalSpentPopularity,
+        };
+      }),
+    );
+  }, [accounts, draftByAccount, selectedEventId]);
+
+  useEffect(() => {
+    lastSavedSnapshotRef.current = "";
+  }, [selectedEventId]);
+
+  useEffect(() => {
+    if (!selectedEventId || !draftSnapshot || isLoadingRows) return;
+
+    if (!lastSavedSnapshotRef.current) {
+      lastSavedSnapshotRef.current = draftSnapshot;
+      return;
+    }
+
+    if (draftSnapshot === lastSavedSnapshotRef.current) return;
+    if (saveAllMutation.isPending || autoSaveMutation.isPending) return;
+
+    const timer = window.setTimeout(() => {
+      autoSaveMutation.mutate();
+    }, 700);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    autoSaveMutation,
+    draftSnapshot,
+    isLoadingRows,
+    saveAllMutation.isPending,
+    selectedEventId,
+    autoSaveMutation.isPending,
+  ]);
 
   const totals = useMemo(() => {
     let collectedTotal = 0;
@@ -488,6 +589,7 @@ function EventPage() {
   const updateEventError = updateEventNameMutation.error?.message;
   const deleteEventError = deleteEventMutation.error?.message;
   const saveAllError = saveAllMutation.error?.message;
+  const autoSaveError = autoSaveMutation.error?.message;
 
   return (
     <div
@@ -577,7 +679,12 @@ function EventPage() {
 
             <Button
               onClick={() => saveAllMutation.mutate()}
-              disabled={!selectedEventId || saveAllMutation.isPending || accounts.length === 0}
+              disabled={
+                !selectedEventId ||
+                saveAllMutation.isPending ||
+                autoSaveMutation.isPending ||
+                accounts.length === 0
+              }
             >
               {saveAllMutation.isPending ? "Saving..." : "Save all"}
             </Button>
@@ -620,12 +727,22 @@ function EventPage() {
           {updateEventError ? <p className="mt-3 text-sm text-destructive">{updateEventError}</p> : null}
           {deleteEventError ? <p className="mt-3 text-sm text-destructive">{deleteEventError}</p> : null}
           {saveAllError ? <p className="mt-3 text-sm text-destructive">{saveAllError}</p> : null}
+          {autoSaveError ? <p className="mt-3 text-sm text-destructive">{autoSaveError}</p> : null}
 
           <p className="mt-3 text-sm text-muted-foreground">
             {selectedEvent
-              ? `Selected: ${selectedEvent.name} (${selectedEventRewardType === "fixed" ? `Fixed ${selectedEventFixedPopularity}` : "Variable"}). Saved values stay until you change them and click Save all.`
+              ? `Selected: ${selectedEvent.name} (${selectedEventRewardType === "fixed" ? `Fixed ${selectedEventFixedPopularity}` : "Variable"}). Changes auto-save while you type.`
               : "Create or select an event to start entering popularity."}
           </p>
+          {selectedEventId ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {saveAllMutation.isPending || autoSaveMutation.isPending
+                ? "Saving changes..."
+                : lastAutoSavedAt
+                  ? `Last saved: ${lastAutoSavedAt.toLocaleTimeString()}`
+                  : "Ready to save"}
+            </p>
+          ) : null}
         </section>
 
         <section className="grid gap-3 md:grid-cols-3">
