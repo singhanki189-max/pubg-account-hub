@@ -457,6 +457,34 @@ function EventPage() {
     [events, selectedEventId],
   );
 
+  const selectedEventRewardType = selectedEvent?.reward_type === "fixed" ? "fixed" : "variable";
+  const selectedEventFixedPopularity = selectedEvent?.fixed_popularity ?? 0;
+
+  const filteredAccounts = useMemo(() => {
+    if (!gmailFilter.trim()) return accounts;
+    const lowered = gmailFilter.toLowerCase();
+    return accounts.filter((account) => account.gmail.toLowerCase().includes(lowered));
+  }, [accounts, gmailFilter]);
+
+  function handleSetPopularity(accountId: string) {
+    const draft = getDraft(accountId);
+
+    if (isKrMode) {
+      const nextPopularity =
+        selectedEventRewardType === "fixed"
+          ? String(selectedEventFixedPopularity)
+          : draft.krPopularity || "0";
+      updateDraft(accountId, { krChecked: true, krPopularity: nextPopularity });
+      return;
+    }
+
+    const nextPopularity =
+      selectedEventRewardType === "fixed"
+        ? String(selectedEventFixedPopularity)
+        : draft.globalPopularity || "0";
+    updateDraft(accountId, { globalChecked: true, globalPopularity: nextPopularity });
+  }
+
   const createEventError = createEventMutation.error?.message;
   const updateEventError = updateEventNameMutation.error?.message;
   const deleteEventError = deleteEventMutation.error?.message;
