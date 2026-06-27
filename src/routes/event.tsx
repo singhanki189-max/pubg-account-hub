@@ -21,6 +21,10 @@ type PubgAccount = Tables<"pubg_accounts">;
 type PubgEvent = Tables<"pubg_events">;
 type EventPopularityRow = Tables<"pubg_event_account_popularity">;
 type EventMode = "kr" | "global";
+type PubgEventWithConfig = PubgEvent & {
+  reward_type?: "fixed" | "variable";
+  fixed_popularity?: number;
+};
 
 type EventDraft = {
   krChecked: boolean;
@@ -68,9 +72,13 @@ function EventPage() {
   const isKrMode = mode === "kr";
   const modeLabel = isKrMode ? "PUBG KR" : "PUBG Global";
   const queryClient = useQueryClient();
+  const supabaseAny = supabase as any;
   const [newEventName, setNewEventName] = useState("");
+  const [newEventRewardType, setNewEventRewardType] = useState<"fixed" | "variable">("variable");
+  const [newEventFixedPopularity, setNewEventFixedPopularity] = useState("0");
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [editEventName, setEditEventName] = useState("");
+  const [gmailFilter, setGmailFilter] = useState("");
   const [draftByAccount, setDraftByAccount] = useState<Record<string, EventDraft>>({});
 
   const { data: accounts = [], isLoading, error } = useQuery({
