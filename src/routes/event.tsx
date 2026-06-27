@@ -20,7 +20,6 @@ import pubgHeroBg from "@/assets/pubg-hero-bg.png.asset.json";
 type PubgAccount = Tables<"pubg_accounts">;
 type PubgEvent = Tables<"pubg_events">;
 type EventPopularityRow = Tables<"pubg_event_account_popularity">;
-type EventMode = "kr" | "global";
 type PubgEventWithConfig = PubgEvent & {
   reward_type?: "fixed" | "variable";
   fixed_popularity?: number;
