@@ -88,7 +88,18 @@ function Index() {
   const cardPopularityPerCard = 50_000;
 
   function formatInK(value: number) {
-    if (Math.abs(value) < 1000) return String(value);
+    const absValue = Math.abs(value);
+
+    if (absValue >= 1_000_000) {
+      const inMillions = value / 1_000_000;
+      const formatted = Number.isInteger(inMillions)
+        ? inMillions.toLocaleString()
+        : inMillions.toLocaleString(undefined, { maximumFractionDigits: 1 });
+      return `${formatted}M`;
+    }
+
+    if (absValue < 1000) return value.toLocaleString();
+
     const inK = value / 1000;
     const formatted = Number.isInteger(inK)
       ? inK.toLocaleString()
