@@ -70,6 +70,27 @@ function EventPage() {
   const { mode = "kr" } = Route.useSearch();
   const isKrMode = mode === "kr";
   const modeLabel = isKrMode ? "PUBG KR" : "PUBG Global";
+
+  function formatPopularity(value: number) {
+    const absValue = Math.abs(value);
+
+    if (absValue >= 1_000_000) {
+      const inMillions = value / 1_000_000;
+      const formatted = Number.isInteger(inMillions)
+        ? inMillions.toLocaleString()
+        : inMillions.toLocaleString(undefined, { maximumFractionDigits: 1 });
+      return `${formatted}M`;
+    }
+
+    if (absValue < 1000) return value.toLocaleString();
+
+    const inK = value / 1000;
+    const formatted = Number.isInteger(inK)
+      ? inK.toLocaleString()
+      : inK.toLocaleString(undefined, { maximumFractionDigits: 1 });
+    return `${formatted}k`;
+  }
+
   const queryClient = useQueryClient();
   const supabaseAny = supabase as any;
   const [newEventName, setNewEventName] = useState("");
@@ -748,21 +769,21 @@ function EventPage() {
         <section className="grid gap-3 md:grid-cols-3">
           <div className="premium-surface rounded-md border p-4 text-sm">
             <p className="text-muted-foreground">{modeLabel} collected</p>
-            <p className="text-2xl font-semibold">{totals.collectedTotal.toLocaleString()}</p>
+            <p className="text-2xl font-semibold">{formatPopularity(totals.collectedTotal)}</p>
           </div>
           <div className="premium-surface rounded-md border p-4 text-sm">
             <p className="text-muted-foreground">{modeLabel} sent</p>
-            <p className="text-2xl font-semibold">{totals.sentTotal.toLocaleString()}</p>
+            <p className="text-2xl font-semibold">{formatPopularity(totals.sentTotal)}</p>
           </div>
           <div className="premium-surface rounded-md border p-4 text-sm">
             <p className="text-muted-foreground">{modeLabel} available</p>
-            <p className="text-2xl font-semibold">{totals.availableTotal.toLocaleString()}</p>
+            <p className="text-2xl font-semibold">{formatPopularity(totals.availableTotal)}</p>
           </div>
         </section>
 
         <section className="premium-surface rounded-lg border p-4 text-sm">
           <p className="text-muted-foreground">Stored available {modeLabel} (all events)</p>
-          <p className="text-2xl font-semibold">{totalAvailableAcrossAllEvents.toLocaleString()}</p>
+          <p className="text-2xl font-semibold">{formatPopularity(totalAvailableAcrossAllEvents)}</p>
         </section>
 
         <section className="premium-surface rounded-lg border p-5">
@@ -898,11 +919,11 @@ function EventPage() {
                         </TableCell>
 
                         <TableCell className="text-right font-medium">
-                          {availablePopularity.toLocaleString()}
+                          {formatPopularity(availablePopularity)}
                         </TableCell>
 
                         <TableCell className="text-right font-medium">
-                          {availableAcrossAllEvents.toLocaleString()}
+                          {formatPopularity(availableAcrossAllEvents)}
                         </TableCell>
                       </TableRow>
                     );
