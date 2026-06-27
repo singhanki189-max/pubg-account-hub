@@ -87,6 +87,15 @@ function Index() {
   const queryClient = useQueryClient();
   const cardPopularityPerCard = 50_000;
 
+  function formatInK(value: number) {
+    if (Math.abs(value) < 1000) return String(value);
+    const inK = value / 1000;
+    const formatted = Number.isInteger(inK)
+      ? inK.toLocaleString()
+      : inK.toLocaleString(undefined, { maximumFractionDigits: 1 });
+    return `${formatted}k`;
+  }
+
   const [gmail, setGmail] = useState("");
   const [emailLevel, setEmailLevel] = useState("0");
   const [uc, setUc] = useState("0");
@@ -354,19 +363,19 @@ function Index() {
           <div className="mt-4 grid gap-3 md:grid-cols-4">
             <div className="rounded-md border border-border bg-muted p-3 text-sm">
               <p className="text-muted-foreground">Cards popularity ({cardPopularityPerCard.toLocaleString()} each)</p>
-              <p className="text-xl font-semibold">{totalCardsPopularity.toLocaleString()}</p>
+              <p className="text-xl font-semibold">{formatInK(totalCardsPopularity)}</p>
             </div>
             <div className="rounded-md border border-border bg-muted p-3 text-sm">
               <p className="text-muted-foreground">Available PUBG KR popularity</p>
-              <p className="text-xl font-semibold">{totalAvailableKrPopularity.toLocaleString()}</p>
+              <p className="text-xl font-semibold">{formatInK(totalAvailableKrPopularity)}</p>
             </div>
             <div className="rounded-md border border-border bg-muted p-3 text-sm">
               <p className="text-muted-foreground">Available PUBG Global popularity</p>
-              <p className="text-xl font-semibold">{totalAvailableGlobalPopularity.toLocaleString()}</p>
+              <p className="text-xl font-semibold">{formatInK(totalAvailableGlobalPopularity)}</p>
             </div>
             <div className="rounded-md border border-border bg-muted p-3 text-sm">
               <p className="text-muted-foreground">Total popularity (cards + KR + global)</p>
-              <p className="text-xl font-semibold">{totalOverallPopularity.toLocaleString()}</p>
+              <p className="text-xl font-semibold">{formatInK(totalOverallPopularity)}</p>
             </div>
           </div>
         </section>
