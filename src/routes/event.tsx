@@ -215,18 +215,26 @@ function EventPage() {
     mutationFn: async () => {
       const trimmedName = newEventName.trim();
       if (!trimmedName) throw new Error("Please enter an event name.");
+      const parsedFixedPopularity = nonNegativeNumberSchema.parse(Number(newEventFixedPopularity || 0));
 
-      const { data, error: dbError } = await supabase
+      const { data, error: dbError } = await supabaseAny
         .from("pubg_events")
-        .insert({ name: trimmedName, mode })
-        .select("id, name, created_at, updated_at")
+        .insert({
+          name: trimmedName,
+          mode,
+          reward_type: newEventRewardType,
+          fixed_popularity: newEventRewardType === "fixed" ? parsedFixedPopularity : 0,
+        })
+        .select("id, name, mode, reward_type, fixed_popularity, created_at, updated_at")
         .single();
 
       if (dbError) throw dbError;
-      return data as PubgEvent;
+      return data as PubgEventWithConfig;
     },
     onSuccess: (createdEvent) => {
       setNewEventName("");
+      setNewEventRewardType("variable");
+      setNewEventFixedPopularity("0");
       setSelectedEventId(createdEvent.id);
       queryClient.invalidateQueries({ queryKey: ["pubg_events", mode] });
     },
