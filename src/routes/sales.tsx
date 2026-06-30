@@ -233,7 +233,7 @@ function SalesPage() {
               min={0}
               value={popularitySent}
               onChange={(event) => setPopularitySent(event.target.value)}
-              placeholder="Popularity sent"
+              placeholder="Popularity you sent"
               required
             />
             <Input
@@ -241,7 +241,7 @@ function SalesPage() {
               min={0}
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
-              placeholder="Money received"
+              placeholder="Sell amount (money you get)"
               required
             />
             <Input
@@ -249,7 +249,7 @@ function SalesPage() {
               min={0}
               value={buyAmount}
               onChange={(event) => setBuyAmount(event.target.value)}
-              placeholder="Buy amount (for reselling)"
+              placeholder="Buy amount (money you pay in reselling)"
               disabled={saleMode !== "reselling"}
             />
             <Input
