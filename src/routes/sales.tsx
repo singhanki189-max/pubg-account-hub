@@ -61,12 +61,15 @@ function SalesPage() {
   const createSaleMutation = useMutation({
     mutationFn: async () => {
       const validatedSenderId = senderIdSchema.parse(senderId);
+      const normalizedSender = validatedSenderId.toLowerCase().replace(/[^a-z0-9._-]/g, "");
+      const storageGmail = `${normalizedSender || "sender"}@id.local`;
       const validatedPopularitySent = amountSchema.parse(Number(popularitySent || 0));
       const validatedAmount = amountSchema.parse(Number(amount || 0));
       const validatedBuyAmount = amountSchema.parse(Number(buyAmount || 0));
       const soldAtValue = soldAt ? new Date(soldAt).toISOString() : new Date().toISOString();
 
       const { error: dbError } = await supabase.from("pubg_sales_entries").insert({
+        gmail: storageGmail,
         sender_id: validatedSenderId,
         popularity_sent: validatedPopularitySent,
         sale_mode: saleMode,
