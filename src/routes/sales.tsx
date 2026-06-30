@@ -12,7 +12,6 @@ import pubgHeroBg from "@/assets/pubg-hero-bg.png.asset.json";
 
 type SaleEntry = Tables<"pubg_sales_entries">;
 
-const gmailSchema = z.string().trim().email().max(255);
 const amountSchema = z.number().int().min(0).max(1_000_000_000);
 const senderIdSchema = z.string().trim().min(1).max(100);
 
@@ -34,7 +33,6 @@ function SalesPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [gmail, setGmail] = useState("");
   const [senderId, setSenderId] = useState("");
   const [saleMode, setSaleMode] = useState<"direct" | "reselling">("direct");
   const [popularitySent, setPopularitySent] = useState("0");
@@ -62,7 +60,6 @@ function SalesPage() {
 
   const createSaleMutation = useMutation({
     mutationFn: async () => {
-      const validatedGmail = gmailSchema.parse(gmail);
       const validatedSenderId = senderIdSchema.parse(senderId);
       const validatedPopularitySent = amountSchema.parse(Number(popularitySent || 0));
       const validatedAmount = amountSchema.parse(Number(amount || 0));
@@ -70,7 +67,6 @@ function SalesPage() {
       const soldAtValue = soldAt ? new Date(soldAt).toISOString() : new Date().toISOString();
 
       const { error: dbError } = await supabase.from("pubg_sales_entries").insert({
-        gmail: validatedGmail,
         sender_id: validatedSenderId,
         popularity_sent: validatedPopularitySent,
         sale_mode: saleMode,
@@ -84,7 +80,6 @@ function SalesPage() {
       if (dbError) throw dbError;
     },
     onSuccess: () => {
-      setGmail("");
       setSenderId("");
       setSaleMode("direct");
       setPopularitySent("0");
@@ -114,7 +109,6 @@ function SalesPage() {
       if (!matchMonth) return false;
       if (!q) return true;
       return (
-        row.gmail.toLowerCase().includes(q) ||
         row.sender_id.toLowerCase().includes(q) ||
         row.sale_mode.toLowerCase().includes(q)
       );
@@ -218,12 +212,6 @@ function SalesPage() {
             }}
           >
             <Input
-              value={gmail}
-              onChange={(event) => setGmail(event.target.value)}
-              placeholder="gmail@example.com"
-              required
-            />
-            <Input
               value={senderId}
               onChange={(event) => setSenderId(event.target.value)}
               placeholder="Sender ID number"
@@ -267,7 +255,7 @@ function SalesPage() {
               onChange={(event) => setSoldAt(event.target.value)}
             />
             <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Note" />
-            <Button type="submit" disabled={createSaleMutation.isPending || !gmail.trim() || !senderId.trim()}>
+            <Button type="submit" disabled={createSaleMutation.isPending || !senderId.trim()}>
               {createSaleMutation.isPending ? "Saving..." : "Save record"}
             </Button>
           </form>
@@ -287,7 +275,7 @@ function SalesPage() {
             <Input
               value={gmailFilter}
               onChange={(event) => setGmailFilter(event.target.value)}
-              placeholder="Search gmail / sender ID / mode"
+              placeholder="Search sender ID / mode"
             />
           </div>
 
@@ -299,7 +287,6 @@ function SalesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Gmail</TableHead>
                     <TableHead>Sender ID</TableHead>
                     <TableHead>Mode</TableHead>
                     <TableHead>Popularity Sent</TableHead>
@@ -314,7 +301,6 @@ function SalesPage() {
                 <TableBody>
                   {filteredSales.map((row) => (
                     <TableRow key={row.id}>
-                      <TableCell className="font-medium">{row.gmail}</TableCell>
                       <TableCell>{row.sender_id}</TableCell>
                       <TableCell className="capitalize">{row.sale_mode}</TableCell>
                       <TableCell>{row.popularity_sent.toLocaleString()}</TableCell>
