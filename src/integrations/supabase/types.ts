@@ -131,6 +131,42 @@ export type Database = {
         }
         Relationships: []
       }
+      pubg_sales_entries: {
+        Row: {
+          amount: number
+          created_at: string
+          entry_type: string
+          gmail: string
+          id: string
+          note: string
+          sold_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          entry_type: string
+          gmail: string
+          id?: string
+          note?: string
+          sold_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          entry_type?: string
+          gmail?: string
+          id?: string
+          note?: string
+          sold_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

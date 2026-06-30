@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
@@ -66,6 +66,13 @@ function parseBulkRows(
 }
 
 export const Route = createFileRoute("/")({
+  ssr: false,
+  beforeLoad: async () => {
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) {
+      throw redirect({ to: "/auth" });
+    }
+  },
   head: () => ({
     meta: [
       { title: "PUBG Account Manager" },
@@ -84,6 +91,7 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const cardPopularityPerCard = 50_000;
 
@@ -345,6 +353,13 @@ function Index() {
   const bulkSaveError = bulkCreateMutation.error?.message;
   const editSaveError = updateAccountMutation.error?.message;
 
+  async function handleSignOut() {
+    await queryClient.cancelQueries();
+    queryClient.clear();
+    await supabase.auth.signOut();
+    navigate({ to: "/auth", replace: true });
+  }
+
   return (
     <div
       className="min-h-screen premium-page-bg px-4 py-8 text-foreground"
@@ -364,6 +379,12 @@ function Index() {
                 <Link to="/event" search={{ mode: "global" }}>
                   PUBG Global Event
                 </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link to="/sales">Sales</Link>
+              </Button>
+              <Button variant="outline" onClick={handleSignOut}>
+                Logout
               </Button>
             </div>
           </div>
