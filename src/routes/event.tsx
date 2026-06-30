@@ -1,4 +1,4 @@
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
@@ -46,6 +46,13 @@ const defaultEventDraft: EventDraft = {
 };
 
 export const Route = createFileRoute("/event")({
+  ssr: false,
+  beforeLoad: async () => {
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) {
+      throw redirect({ to: "/auth" });
+    }
+  },
   validateSearch: z.object({
     mode: z.enum(["kr", "global"]).optional(),
   }),
@@ -67,6 +74,7 @@ export const Route = createFileRoute("/event")({
 });
 
 function EventPage() {
+  const navigate = useNavigate();
   const { mode = "kr" } = Route.useSearch();
   const isKrMode = mode === "kr";
   const modeLabel = isKrMode ? "PUBG KR" : "PUBG Global";
@@ -612,6 +620,13 @@ function EventPage() {
   const saveAllError = saveAllMutation.error?.message;
   const autoSaveError = autoSaveMutation.error?.message;
 
+  async function handleSignOut() {
+    await queryClient.cancelQueries();
+    queryClient.clear();
+    await supabase.auth.signOut();
+    navigate({ to: "/auth", replace: true });
+  }
+
   return (
     <div
       className="min-h-screen premium-page-bg px-4 py-8 text-foreground"
@@ -639,6 +654,12 @@ function EventPage() {
               </Button>
               <Button asChild variant="outline">
                 <Link to="/">Back</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link to="/sales">Sales</Link>
+              </Button>
+              <Button variant="outline" onClick={handleSignOut}>
+                Logout
               </Button>
             </div>
           </div>
