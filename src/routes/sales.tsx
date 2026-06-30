@@ -14,6 +14,7 @@ type SaleEntry = Tables<"pubg_sales_entries">;
 
 const gmailSchema = z.string().trim().email().max(255);
 const amountSchema = z.number().int().min(0).max(1_000_000_000);
+const senderIdSchema = z.string().trim().min(1).max(100);
 
 export const Route = createFileRoute("/sales")({
   ssr: false,
@@ -34,18 +35,24 @@ function SalesPage() {
   const queryClient = useQueryClient();
 
   const [gmail, setGmail] = useState("");
-  const [entryType, setEntryType] = useState<"sale" | "earning">("sale");
+  const [senderId, setSenderId] = useState("");
+  const [saleMode, setSaleMode] = useState<"direct" | "reselling">("direct");
+  const [popularitySent, setPopularitySent] = useState("0");
   const [amount, setAmount] = useState("0");
+  const [buyAmount, setBuyAmount] = useState("0");
   const [note, setNote] = useState("");
   const [soldAt, setSoldAt] = useState("");
   const [gmailFilter, setGmailFilter] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
 
   const { data: sales = [], isLoading, error } = useQuery({
     queryKey: ["pubg_sales_entries"],
     queryFn: async () => {
       const { data, error: dbError } = await supabase
         .from("pubg_sales_entries")
-        .select("id, user_id, gmail, entry_type, amount, note, sold_at, created_at, updated_at")
+        .select(
+          "id, user_id, gmail, sender_id, popularity_sent, sale_mode, amount, buy_amount, note, sold_at, created_at, updated_at",
+        )
         .order("sold_at", { ascending: false });
 
       if (dbError) throw dbError;
@@ -56,13 +63,20 @@ function SalesPage() {
   const createSaleMutation = useMutation({
     mutationFn: async () => {
       const validatedGmail = gmailSchema.parse(gmail);
+      const validatedSenderId = senderIdSchema.parse(senderId);
+      const validatedPopularitySent = amountSchema.parse(Number(popularitySent || 0));
       const validatedAmount = amountSchema.parse(Number(amount || 0));
+      const validatedBuyAmount = amountSchema.parse(Number(buyAmount || 0));
       const soldAtValue = soldAt ? new Date(soldAt).toISOString() : new Date().toISOString();
 
       const { error: dbError } = await supabase.from("pubg_sales_entries").insert({
         gmail: validatedGmail,
-        entry_type: entryType,
+        sender_id: validatedSenderId,
+        popularity_sent: validatedPopularitySent,
+        sale_mode: saleMode,
+        entry_type: "sale",
         amount: validatedAmount,
+        buy_amount: saleMode === "reselling" ? validatedBuyAmount : 0,
         note: note.trim(),
         sold_at: soldAtValue,
       });
@@ -71,8 +85,11 @@ function SalesPage() {
     },
     onSuccess: () => {
       setGmail("");
-      setEntryType("sale");
+      setSenderId("");
+      setSaleMode("direct");
+      setPopularitySent("0");
       setAmount("0");
+      setBuyAmount("0");
       setNote("");
       setSoldAt("");
       queryClient.invalidateQueries({ queryKey: ["pubg_sales_entries"] });
@@ -90,20 +107,46 @@ function SalesPage() {
   });
 
   const filteredSales = useMemo(() => {
-    if (!gmailFilter.trim()) return sales;
-    const q = gmailFilter.toLowerCase();
-    return sales.filter((row) => row.gmail.toLowerCase().includes(q));
-  }, [gmailFilter, sales]);
+    const q = gmailFilter.trim().toLowerCase();
+    return sales.filter((row) => {
+      const soldMonth = new Date(row.sold_at).toISOString().slice(0, 7);
+      const matchMonth = soldMonth === selectedMonth;
+      if (!matchMonth) return false;
+      if (!q) return true;
+      return (
+        row.gmail.toLowerCase().includes(q) ||
+        row.sender_id.toLowerCase().includes(q) ||
+        row.sale_mode.toLowerCase().includes(q)
+      );
+    });
+  }, [gmailFilter, sales, selectedMonth]);
 
-  const totalSales = useMemo(
-    () => sales.filter((row) => row.entry_type === "sale").reduce((sum, row) => sum + row.amount, 0),
+  const monthlyMoneyEarned = useMemo(
+    () =>
+      filteredSales.reduce((sum, row) => {
+        if (row.sale_mode === "reselling") return sum + (row.amount - row.buy_amount);
+        return sum + row.amount;
+      }, 0),
+    [filteredSales],
+  );
+
+  const monthlyResellingPayable = useMemo(
+    () =>
+      filteredSales.reduce(
+        (sum, row) => (row.sale_mode === "reselling" ? sum + row.buy_amount : sum),
+        0,
+      ),
+    [filteredSales],
+  );
+
+  const totalMoneyEarned = useMemo(
+    () =>
+      sales.reduce((sum, row) => {
+        if (row.sale_mode === "reselling") return sum + (row.amount - row.buy_amount);
+        return sum + row.amount;
+      }, 0),
     [sales],
   );
-  const totalEarnings = useMemo(
-    () => sales.filter((row) => row.entry_type === "earning").reduce((sum, row) => sum + row.amount, 0),
-    [sales],
-  );
-  const net = totalEarnings - totalSales;
 
   async function handleSignOut() {
     await queryClient.cancelQueries();
@@ -123,7 +166,7 @@ function SalesPage() {
             <div>
               <h1 className="text-2xl font-semibold">Sales & Earnings</h1>
               <p className="mt-2 text-sm text-muted-foreground">
-                Store all money out (sales) and money in (earnings) records by Gmail.
+                Keep day-wise sales records by month with sender ID, popularity, and direct/reselling details.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -151,24 +194,24 @@ function SalesPage() {
 
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <div className="rounded-md border border-border bg-muted p-3 text-sm">
-              <p className="text-muted-foreground">Total Sales</p>
-              <p className="text-xl font-semibold">{totalSales.toLocaleString()}</p>
+              <p className="text-muted-foreground">Monthly Money Earned</p>
+              <p className="text-xl font-semibold">{monthlyMoneyEarned.toLocaleString()}</p>
             </div>
             <div className="rounded-md border border-border bg-muted p-3 text-sm">
-              <p className="text-muted-foreground">Total Earnings</p>
-              <p className="text-xl font-semibold">{totalEarnings.toLocaleString()}</p>
+              <p className="text-muted-foreground">Monthly Reselling Payable</p>
+              <p className="text-xl font-semibold">{monthlyResellingPayable.toLocaleString()}</p>
             </div>
             <div className="rounded-md border border-border bg-muted p-3 text-sm">
-              <p className="text-muted-foreground">Net</p>
-              <p className="text-xl font-semibold">{net.toLocaleString()}</p>
+              <p className="text-muted-foreground">Total Money Earned</p>
+              <p className="text-xl font-semibold">{totalMoneyEarned.toLocaleString()}</p>
             </div>
           </div>
         </section>
 
         <section className="premium-surface rounded-lg border p-5">
-          <h2 className="text-lg font-semibold">Add record</h2>
+          <h2 className="text-lg font-semibold">Add day-wise record</h2>
           <form
-            className="mt-4 grid gap-3 md:grid-cols-5"
+            className="mt-4 grid gap-3 md:grid-cols-4"
             onSubmit={(event) => {
               event.preventDefault();
               createSaleMutation.mutate();
@@ -180,20 +223,43 @@ function SalesPage() {
               placeholder="gmail@example.com"
               required
             />
+            <Input
+              value={senderId}
+              onChange={(event) => setSenderId(event.target.value)}
+              placeholder="Sender ID number"
+              required
+            />
             <select
               className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-              value={entryType}
-              onChange={(event) => setEntryType(event.target.value as "sale" | "earning")}
+              value={saleMode}
+              onChange={(event) => setSaleMode(event.target.value as "direct" | "reselling")}
             >
-              <option value="sale">Sale</option>
-              <option value="earning">Earning</option>
+              <option value="direct">Direct selling</option>
+              <option value="reselling">Reselling</option>
             </select>
+            <Input
+              type="number"
+              min={0}
+              value={popularitySent}
+              onChange={(event) => setPopularitySent(event.target.value)}
+              placeholder="Popularity sent"
+              required
+            />
             <Input
               type="number"
               min={0}
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
-              placeholder="Amount"
+              placeholder="Money received"
+              required
+            />
+            <Input
+              type="number"
+              min={0}
+              value={buyAmount}
+              onChange={(event) => setBuyAmount(event.target.value)}
+              placeholder="Buy amount (for reselling)"
+              disabled={saleMode !== "reselling"}
             />
             <Input
               type="datetime-local"
@@ -201,7 +267,7 @@ function SalesPage() {
               onChange={(event) => setSoldAt(event.target.value)}
             />
             <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Note" />
-            <Button type="submit" disabled={createSaleMutation.isPending || !gmail.trim()}>
+            <Button type="submit" disabled={createSaleMutation.isPending || !gmail.trim() || !senderId.trim()}>
               {createSaleMutation.isPending ? "Saving..." : "Save record"}
             </Button>
           </form>
@@ -211,12 +277,17 @@ function SalesPage() {
         </section>
 
         <section className="premium-surface rounded-lg border p-5">
-          <h2 className="text-lg font-semibold">Records</h2>
-          <div className="mt-4">
+          <h2 className="text-lg font-semibold">Monthly records</h2>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <Input
+              type="month"
+              value={selectedMonth}
+              onChange={(event) => setSelectedMonth(event.target.value)}
+            />
             <Input
               value={gmailFilter}
               onChange={(event) => setGmailFilter(event.target.value)}
-              placeholder="Search gmail"
+              placeholder="Search gmail / sender ID / mode"
             />
           </div>
 
@@ -229,8 +300,12 @@ function SalesPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Gmail</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Amount</TableHead>
+                    <TableHead>Sender ID</TableHead>
+                    <TableHead>Mode</TableHead>
+                    <TableHead>Popularity Sent</TableHead>
+                    <TableHead>Money Received</TableHead>
+                    <TableHead>Buy Amount</TableHead>
+                    <TableHead>Profit</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Note</TableHead>
                     <TableHead>Action</TableHead>
@@ -240,8 +315,17 @@ function SalesPage() {
                   {filteredSales.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell className="font-medium">{row.gmail}</TableCell>
-                      <TableCell className="capitalize">{row.entry_type}</TableCell>
+                      <TableCell>{row.sender_id}</TableCell>
+                      <TableCell className="capitalize">{row.sale_mode}</TableCell>
+                      <TableCell>{row.popularity_sent.toLocaleString()}</TableCell>
                       <TableCell>{row.amount.toLocaleString()}</TableCell>
+                      <TableCell>{row.buy_amount.toLocaleString()}</TableCell>
+                      <TableCell>
+                        {(row.sale_mode === "reselling"
+                          ? row.amount - row.buy_amount
+                          : row.amount
+                        ).toLocaleString()}
+                      </TableCell>
                       <TableCell>{new Date(row.sold_at).toLocaleString()}</TableCell>
                       <TableCell>{row.note || "-"}</TableCell>
                       <TableCell>
