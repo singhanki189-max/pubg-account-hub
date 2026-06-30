@@ -134,33 +134,45 @@ export type Database = {
       pubg_sales_entries: {
         Row: {
           amount: number
+          buy_amount: number
           created_at: string
           entry_type: string
           gmail: string
           id: string
           note: string
+          popularity_sent: number
+          sale_mode: string
+          sender_id: string
           sold_at: string
           updated_at: string
           user_id: string
         }
         Insert: {
           amount?: number
+          buy_amount?: number
           created_at?: string
           entry_type: string
           gmail: string
           id?: string
           note?: string
+          popularity_sent?: number
+          sale_mode?: string
+          sender_id: string
           sold_at?: string
           updated_at?: string
           user_id?: string
         }
         Update: {
           amount?: number
+          buy_amount?: number
           created_at?: string
           entry_type?: string
           gmail?: string
           id?: string
           note?: string
+          popularity_sent?: number
+          sale_mode?: string
+          sender_id?: string
           sold_at?: string
           updated_at?: string
           user_id?: string
