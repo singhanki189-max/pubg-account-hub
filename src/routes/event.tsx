@@ -658,6 +658,9 @@ function EventPage() {
               <Button asChild variant="outline">
                 <Link to="/sales">Sales</Link>
               </Button>
+              <Button asChild variant="outline">
+                <Link to="/order">Order</Link>
+              </Button>
               <Button variant="outline" onClick={handleSignOut}>
                 Logout
               </Button>
