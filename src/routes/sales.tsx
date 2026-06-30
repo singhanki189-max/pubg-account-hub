@@ -140,6 +140,9 @@ function SalesPage() {
                   PUBG Global Event
                 </Link>
               </Button>
+              <Button asChild variant="outline">
+                <Link to="/order">Order</Link>
+              </Button>
               <Button variant="outline" onClick={handleSignOut}>
                 Logout
               </Button>
