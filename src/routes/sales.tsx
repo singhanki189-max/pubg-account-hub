@@ -35,9 +35,9 @@ function SalesPage() {
 
   const [senderId, setSenderId] = useState("");
   const [saleMode, setSaleMode] = useState<"direct" | "reselling">("direct");
-  const [popularitySent, setPopularitySent] = useState("0");
-  const [amount, setAmount] = useState("0");
-  const [buyAmount, setBuyAmount] = useState("0");
+  const [popularitySent, setPopularitySent] = useState("");
+  const [amount, setAmount] = useState("");
+  const [buyAmount, setBuyAmount] = useState("");
   const [note, setNote] = useState("");
   const [soldAt, setSoldAt] = useState("");
   const [gmailFilter, setGmailFilter] = useState("");
@@ -85,9 +85,9 @@ function SalesPage() {
     onSuccess: () => {
       setSenderId("");
       setSaleMode("direct");
-      setPopularitySent("0");
-      setAmount("0");
-      setBuyAmount("0");
+      setPopularitySent("");
+      setAmount("");
+      setBuyAmount("");
       setNote("");
       setSoldAt("");
       queryClient.invalidateQueries({ queryKey: ["pubg_sales_entries"] });
