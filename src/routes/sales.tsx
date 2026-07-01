@@ -43,6 +43,10 @@ function SalesPage() {
   const [gmailFilter, setGmailFilter] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
 
+  const handleNumericTextChange = (value: string, setValue: (next: string) => void) => {
+    setValue(value.replace(/[^0-9]/g, ""));
+  };
+
   const { data: sales = [], isLoading, error } = useQuery({
     queryKey: ["pubg_sales_entries"],
     queryFn: async () => {
@@ -229,27 +233,33 @@ function SalesPage() {
               <option value="reselling">Reselling</option>
             </select>
             <Input
-              type="number"
-              min={0}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={popularitySent}
-              onChange={(event) => setPopularitySent(event.target.value)}
+              onChange={(event) => handleNumericTextChange(event.target.value, setPopularitySent)}
               placeholder="Popularity you sent"
+              autoComplete="off"
               required
             />
             <Input
-              type="number"
-              min={0}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={amount}
-              onChange={(event) => setAmount(event.target.value)}
+              onChange={(event) => handleNumericTextChange(event.target.value, setAmount)}
               placeholder="Sell amount (money you get)"
+              autoComplete="off"
               required
             />
             <Input
-              type="number"
-              min={0}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={buyAmount}
-              onChange={(event) => setBuyAmount(event.target.value)}
+              onChange={(event) => handleNumericTextChange(event.target.value, setBuyAmount)}
               placeholder="Buy amount (money you pay in reselling)"
+              autoComplete="off"
               disabled={saleMode !== "reselling"}
             />
             <Input
